@@ -63,6 +63,63 @@ button{ padding:6px 10px; cursor:pointer; font-size: 12px; }
   background-position: center;
   background-color: #fff;
 }
+
+/* 追加: モバイル対応のレスポンシブ調整 */
+.grid-wrapper{ max-width:100%; }
+@media (max-width: 900px){
+  :root{ --sidebar-width:100%; --cell-size:18px; --padding:8px; }
+  body{ flex-direction:column; height:auto; gap:8px; }
+  .left{ order:1; width:100%; padding:var(--padding); }
+  .right{ order:2; width:100%; padding:var(--padding); border-left:none; border-top:1px solid #eee; box-sizing:border-box; }
+  .right{ flex: none; }
+  .galleryList{ grid-template-columns: repeat(4, 1fr); gap:6px; }
+  .galleryItem{ width:32px; height:32px; }
+  .selectedPreview{ width:48px; height:48px; }
+  .galleryThumb{ background-size:contain; }
+  .grid{ width:max-content; /* allow horizontal scroll in wrapper */ }
+  textarea{ font-size:13px; }
+  .small{ padding:6px 10px; }
+  .selectedBox{ flex-direction:row; gap:8px; }
+  .flexRow{ flex-wrap:wrap; gap:6px; }
+}
+
+/* Very small phones */
+@media (max-width: 420px){
+  :root{ --cell-size:16px; --padding:6px; }
+  .galleryList{ grid-template-columns: repeat(3, 1fr); }
+  .galleryItem{ width:28px; height:28px; }
+  .selectedPreview{ width:40px; height:40px; font-size:9px; }
+  .galleryHeader{ font-size:13px; }
+}
+
+
+/* 追加: アイコン一覧を位置固定 */
+@media (max-width: 900px){
+  .right{
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 45vh;
+    overflow-y: auto;
+    background: #fff;
+    z-index: 1000;
+  }
+  .left{
+    margin-bottom: 46vh; /* fixed right panel height + margin */
+  }
+}
+
+/* PCでも固定したい場合 */
+@media (min-width: 901px){
+  .right{
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -72,7 +129,7 @@ button{ padding:6px 10px; cursor:pointer; font-size: 12px; }
     <label class="note"><input type="checkbox" id="toggleBorder" checked> 枠線</label>
     <button id="resetGrid" class="small danger">リセット</button>
   </div>
-  <div id="grid" class="grid"></div>
+  <div class="grid-wrapper" style="overflow:auto;-webkit-overflow-scrolling:touch;"><div id="grid" class="grid"></div></div>
 </div>
 
 <div class="right">
@@ -136,12 +193,8 @@ const galleryCategories = {
       "https://img.atwiki.jp/niizato-area/pub/shiro.png",
       "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/BSicon_lBHF.svg/40px-BSicon_lBHF.svg.png",
       "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/BSicon_exlBHF.svg/40px-BSicon_exlBHF.svg.png",
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/BSicon_ulBHF.svg/40px-BSicon_ulBHF.svg.png",
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/BSicon_uexlBHF.svg/40px-BSicon_uexlBHF.svg.png",
       "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/BSicon_lHST.svg/40px-BSicon_lHST.svg.png",
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/BSicon_exlHST.svg/40px-BSicon_exlHST.svg.png",
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/BSicon_ulHST.svg/40px-BSicon_ulHST.svg.png",
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/BSicon_uexlHST.svg/40px-BSicon_uexlHST.svg.png"
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/BSicon_exlHST.svg/40px-BSicon_exlHST.svg.png"
     ]
   },
   "直線": {
