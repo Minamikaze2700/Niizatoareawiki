@@ -1,0 +1,766 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>画像グリッドツール（画像制限・shiro置換版）</title>
+<style>
+:root{ --cell-size:20px; --sidebar-width:340px; --padding:12px; }
+body{ margin:0; display:flex; height:100vh; gap:12px; font-family:system-ui; background: #f0f0f0; }
+.left{ flex:1; padding:var(--padding); overflow:auto; background: #fff; }
+.grid{
+  display:grid;
+  grid-template-columns:repeat(var(--cols),var(--cell-size));
+  grid-auto-rows:var(--cell-size);
+  border:1px solid #ddd; width:max-content;
+  background-color: #fff;
+}
+.cell{
+  width:var(--cell-size);
+  height:var(--cell-size);
+  position:relative;
+  background:#fff;
+  cursor:pointer;
+}
+.cell.border{ border:1px solid rgba(0,0,0,.08); }
+.attached,.preview{ position:absolute; inset:0; background-size:cover; background-position:center; }
+.preview{ display:none; pointer-events:none; opacity:.7; background-color: rgba(0,123,255,0.2); }
+
+.right{ width:var(--sidebar-width); padding:var(--padding); border-left:1px solid #eee; display:flex; flex-direction:column; gap:12px; overflow:auto; box-sizing:border-box; background: #fff; }
+.selectedBox{ border:1px solid #ccc; padding:8px; display:flex; justify-content:space-between; align-items:center; gap:8px; background: #fafafa; }
+.selectedPreview{ width:60px; height:60px; border:1px solid #bbb; background-size:contain; background-repeat:no-repeat; background-position:center; display:flex; align-items:center; justify-content:center; font-size:10px; color:#666; background-color: #fff; }
+
+.galleryHeader{ font-weight:700; font-size: 14px; }
+.galleryControls{ margin-top:4px; }
+.galleryList{ display:grid; grid-template-columns: repeat(6, 1fr); gap:4px; margin-top:6px; }
+.subGroup{ margin-bottom:12px; border-bottom: 1px solid #eee; pb: 8px; }
+.subTitle{ font-size:11px; font-weight:600; color:#555; margin:4px 0; }
+.galleryItem{ width:36px; height:36px; border:2px solid #eee; border-radius:4px; cursor:pointer; overflow:hidden; display:flex; align-items:center; justify-content:center; background: #fff; }
+.galleryItem:hover { border-color: #aaa; }
+.galleryThumb{ width:100%; height:100%; background-size:contain; background-repeat: no-repeat; background-position:center; }
+
+textarea{ width:100%; height:100px; font-family:monospace; font-size:11px; box-sizing:border-box; padding: 4px; }
+button{ padding:6px 10px; cursor:pointer; font-size: 12px; }
+.small{ padding:4px 8px; font-size:12px; }
+.note{ font-size:11px; color:#666; }
+.flexRow{ display:flex; gap:8px; align-items:center; }
+.danger{ color: #d93025; border-color: #d93025; background: #fff; }
+.danger:hover{ background: #fce8e6; }
+
+#unsupportedWrapper {
+  border: 1px solid #ffcc00;
+  background: #fff9e6;
+  padding: 8px;
+  border-radius: 4px;
+  margin-top: 8px;
+}
+.unsupportedItem {
+  width: 24px;
+  height: 24px;
+  border: 1px solid #ccc;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  background-color: #fff;
+}
+</style>
+</head>
+<body>
+<div class="left">
+  <h3>グリッド作成</h3>
+  <div class="flexRow" style="margin-bottom: 8px;">
+    <label class="note"><input type="checkbox" id="toggleBorder" checked> 枠線</label>
+    <button id="resetGrid" class="small danger">リセット</button>
+  </div>
+  <div id="grid" class="grid"></div>
+</div>
+
+<div class="right">
+  <div class="selectedBox">
+    <div><b>選択中</b></div>
+    <div id="selectedPreview" class="selectedPreview">未選択</div>
+  </div>
+
+  <div>
+    <div class="galleryHeader">画像パレット</div>
+    <div class="galleryControls">
+      <select id="categorySelect" style="width:100%"></select>
+    </div>
+    <div id="gallery"></div>
+  </div>
+
+  <div><b>アウトプット</b>
+    <textarea id="outputArea" readonly></textarea>
+    <div class="flexRow" style="margin-top:6px;">
+      <button id="doOutput" class="small">生成</button>
+      <button id="copyOutput" class="small">コピー</button>
+      <span id="copyMsg" class="note" style="display:none;">OK</span>
+    </div>
+  </div>
+
+  <div><b>インプット</b>
+    <textarea id="inputArea"></textarea>
+    <div style="margin-top:6px;">
+      <button id="doInput" class="small">読み込み実行</button>
+    </div>
+    
+    <div id="unsupportedWrapper" style="display:none;">
+      <div style="font-size:10px; font-weight:bold; color:#856404; margin-bottom:4px;">以下の画像は対応していません。</div>
+      <div id="unsupportedGallery" style="display:flex; flex-wrap:wrap; gap:4px;"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const rows=100, cols=10;
+const placeholder="https://img.atwiki.jp/niizato-area/pub/shiro.png";
+let selectedImage=undefined;
+let currentCategory="凡例用";
+
+// グリッドデータ保持
+const cells = Array.from({length: rows}, ()=> Array.from({length: cols}, ()=> ({ base: placeholder, overlay: null })));
+
+// 登録済みURLを管理するセット
+const allKnownUrls = new Set();
+
+// 重ね合わせが必要な画像の判定 (HUBやPOINTERなど)
+function isOverlayUrl(url){
+  if(!url) return false;
+  return url.includes('HUB') || url.includes('POINTER');
+}
+
+// ユーザー提供のカテゴリ・画像リスト
+const galleryCategories = {
+  "凡例用": {
+    "凡例ページならびに線路際の設備": [
+      "https://img.atwiki.jp/niizato-area/pub/shiro.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/df/BSicon_lBHF.svg/40px-BSicon_lBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/BSicon_exlBHF.svg/40px-BSicon_exlBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/BSicon_ulBHF.svg/40px-BSicon_ulBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/04/BSicon_uexlBHF.svg/40px-BSicon_uexlBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/BSicon_lHST.svg/40px-BSicon_lHST.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/BSicon_exlHST.svg/40px-BSicon_exlHST.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/BSicon_ulHST.svg/40px-BSicon_ulHST.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/ba/BSicon_uexlHST.svg/40px-BSicon_uexlHST.svg.png"
+    ]
+  },
+  "直線": {
+    "標準": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/BSicon_STR.svg/40px-BSicon_STR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/BSicon_exSTR.svg/40px-BSicon_exSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/56/BSicon_tSTR.svg/40px-BSicon_tSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a7/BSicon_extSTR.svg/40px-BSicon_extSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1b/BSicon_hSTR.svg/40px-BSicon_hSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d9/BSicon_exhSTR.svg/40px-BSicon_exhSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/BSicon_STRq.svg/40px-BSicon_STRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/06/BSicon_exSTRq.svg/40px-BSicon_exSTRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/BSicon_tSTRq.svg/40px-BSicon_tSTRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/BSicon_extSTRq.svg/40px-BSicon_extSTRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/BSicon_hSTRq.svg/40px-BSicon_hSTRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f0/BSicon_exhSTRq.svg/40px-BSicon_exhSTRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/BSicon_STR2%2B4.svg/40px-BSicon_STR2%2B4.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c4/BSicon_exSTR2%2B4.svg/40px-BSicon_exSTR2%2B4.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/BSicon_tSTR2%2B4.svg/40px-BSicon_tSTR2%2B4.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/BSicon_extSTR2%2B4.svg/40px-BSicon_extSTR2%2B4.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/BSicon_hSTR2%2B4.svg/40px-BSicon_hSTR2%2B4.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/BSicon_exhSTR2%2B4.svg/40px-BSicon_exhSTR2%2B4.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/BSicon_STR3%2B1.svg/40px-BSicon_STR3%2B1.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/BSicon_exSTR3%2B1.svg/40px-BSicon_exSTR3%2B1.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/BSicon_tSTR3%2B1.svg/40px-BSicon_tSTR3%2B1.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/BSicon_extSTR3%2B1.svg/40px-BSicon_extSTR3%2B1.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/BSicon_hSTR3%2B1.svg/40px-BSicon_hSTR3%2B1.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/98/BSicon_exhSTR3%2B1.svg/40px-BSicon_exhSTR3%2B1.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/99/BSicon_STRg.svg/40px-BSicon_STRg.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d2/BSicon_exSTRg.svg/40px-BSicon_exSTRg.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/BSicon_tSTRg.svg/40px-BSicon_tSTRg.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/BSicon_extSTRg.svg/40px-BSicon_extSTRg.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fb/BSicon_hSTRg.svg/40px-BSicon_hSTRg.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/BSicon_exhSTRg.svg/40px-BSicon_exhSTRg.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/BSicon_STRf.svg/40px-BSicon_STRf.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/BSicon_exSTRf.svg/40px-BSicon_exSTRf.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/29/BSicon_tSTRf.svg/40px-BSicon_tSTRf.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e8/BSicon_extSTRf.svg/40px-BSicon_extSTRf.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/BSicon_hSTRf.svg/40px-BSicon_hSTRf.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/BSicon_exhSTRf.svg/40px-BSicon_exhSTRf.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/BSicon_STRfq.svg/40px-BSicon_STRfq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/BSicon_exSTRfq.svg/40px-BSicon_exSTRfq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/BSicon_tSTRfq.svg/40px-BSicon_tSTRfq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/BSicon_extSTRfq.svg/40px-BSicon_extSTRfq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/BSicon_hSTRfq.svg/40px-BSicon_hSTRfq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/73/BSicon_exhSTRfq.svg/40px-BSicon_exhSTRfq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/BSicon_STRgq.svg/40px-BSicon_STRgq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/BSicon_exSTRgq.svg/40px-BSicon_exSTRgq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/BSicon_tSTRgq.svg/40px-BSicon_tSTRgq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/95/BSicon_extSTRgq.svg/40px-BSicon_extSTRgq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/BSicon_hSTRgq.svg/40px-BSicon_hSTRgq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/BSicon_exhSTRgq.svg/40px-BSicon_exhSTRgq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1f/BSicon_LSTR.svg/40px-BSicon_LSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/BSicon_exLSTR.svg/40px-BSicon_exLSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/BSicon_tLSTR.svg/40px-BSicon_tLSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/BSicon_extLSTR.svg/40px-BSicon_extLSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e3/BSicon_hLSTR.svg/40px-BSicon_hLSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/BSicon_exhLSTR.svg/40px-BSicon_exhLSTR.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/BSicon_LSTRq.svg/40px-BSicon_LSTRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/BSicon_exLSTRq.svg/40px-BSicon_exLSTRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c3/BSicon_tLSTRq.svg/40px-BSicon_tLSTRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/BSicon_extLSTRq.svg/40px-BSicon_extLSTRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/BSicon_hLSTRq.svg/40px-BSicon_hLSTRq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/BSicon_exhLSTRq.svg/40px-BSicon_exhLSTRq.svg.png"
+    ]
+  },
+  "曲線": {
+    "90°": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/BSicon_STRl.svg/40px-BSicon_STRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/BSicon_exSTRl.svg/40px-BSicon_exSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/BSicon_tSTRl.svg/40px-BSicon_tSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/BSicon_extSTRl.svg/40px-BSicon_extSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/af/BSicon_hSTRl.svg/40px-BSicon_hSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/BSicon_exhSTRl.svg/40px-BSicon_exhSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/BSicon_STRr.svg/40px-BSicon_STRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2a/BSicon_exSTRr.svg/40px-BSicon_exSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/70/BSicon_tSTRr.svg/40px-BSicon_tSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/61/BSicon_extSTRr.svg/40px-BSicon_extSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/97/BSicon_hSTRr.svg/40px-BSicon_hSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/BSicon_exhSTRr.svg/40px-BSicon_exhSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/BSicon_STR%2Br.svg/40px-BSicon_STR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/BSicon_exSTR%2Br.svg/40px-BSicon_exSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/BSicon_tSTR%2Br.svg/40px-BSicon_tSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a4/BSicon_extSTR%2Br.svg/40px-BSicon_extSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/BSicon_hSTR%2Br.svg/40px-BSicon_hSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/BSicon_exhSTR%2Br.svg/40px-BSicon_exhSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/BSicon_STR%2Bl.svg/40px-BSicon_STR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/BSicon_exSTR%2Bl.svg/40px-BSicon_exSTR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/BSicon_tSTR%2Bl.svg/40px-BSicon_tSTR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a2/BSicon_extSTR%2Bl.svg/40px-BSicon_extSTR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f1/BSicon_hSTR%2Bl.svg/40px-BSicon_hSTR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/BSicon_exhSTR%2Bl.svg/40px-BSicon_exhSTR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/BSicon_LSTRl.svg/40px-BSicon_LSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/BSicon_exLSTRl.svg/40px-BSicon_exLSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/BSicon_tLSTRl.svg/40px-BSicon_tLSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/BSicon_extLSTRl.svg/40px-BSicon_extLSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/75/BSicon_hLSTRl.svg/40px-BSicon_hLSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/BSicon_exhLSTRl.svg/40px-BSicon_exhLSTRl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/BSicon_LSTRr.svg/40px-BSicon_LSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4e/BSicon_exLSTRr.svg/40px-BSicon_exLSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/BSicon_tLSTRr.svg/40px-BSicon_tLSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/BSicon_extLSTRr.svg/40px-BSicon_extLSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1e/BSicon_hLSTRr.svg/40px-BSicon_hLSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/BSicon_exhLSTRr.svg/40px-BSicon_exhLSTRr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a0/BSicon_LSTR%2Br.svg/40px-BSicon_LSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/BSicon_exLSTR%2Br.svg/40px-BSicon_exLSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/BSicon_tLSTR%2Br.svg/40px-BSicon_tLSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/05/BSicon_extLSTR%2Br.svg/40px-BSicon_extLSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6c/BSicon_hLSTR%2Br.svg/40px-BSicon_hLSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/BSicon_exhLSTR%2Br.svg/40px-BSicon_exhLSTR%2Br.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ec/BSicon_LSTR%2Bl.svg/40px-BSicon_LSTR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/BSicon_exLSTR%2Bl.svg/40px-BSicon_exLSTR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/BSicon_tLSTR%2Bl.svg/40px-BSicon_tLSTR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/BSicon_extLSTR%2Bl.svg/40px-BSicon_extLSTR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/BSicon_hLSTR%2Bl.svg/40px-BSicon_hLSTR%2Bl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/38/BSicon_exhLSTR%2Bl.svg/40px-BSicon_exhLSTR%2Bl.svg.png"
+    ]
+  },
+  "昇降": {
+    "トンネル出入口": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/da/BSicon_tSTRa.svg/40px-BSicon_tSTRa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/67/BSicon_extSTRa.svg/40px-BSicon_extSTRa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8f/BSicon_htSTRa.svg/40px-BSicon_htSTRa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/79/BSicon_exhtSTRa.svg/40px-BSicon_exhtSTRa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/BSicon_tSTRe.svg/40px-BSicon_tSTRe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/BSicon_extSTRe.svg/40px-BSicon_extSTRe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/BSicon_htSTRe.svg/40px-BSicon_htSTRe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/BSicon_exhtSTRe.svg/40px-BSicon_exhtSTRe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cc/BSicon_tSTRaq.svg/40px-BSicon_tSTRaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/BSicon_extSTRaq.svg/40px-BSicon_extSTRaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/BSicon_htSTRaq.svg/40px-BSicon_htSTRaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ed/BSicon_tSTReq.svg/40px-BSicon_tSTReq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/BSicon_extSTReq.svg/40px-BSicon_extSTReq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d5/BSicon_htSTReq.svg/40px-BSicon_htSTReq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/58/BSicon_exhtSTReq.svg/40px-BSicon_exhtSTReq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/BSicon_tSTRra.svg/40px-BSicon_tSTRra.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/47/BSicon_extSTRra.svg/40px-BSicon_extSTRra.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/BSicon_tSTRre.svg/40px-BSicon_tSTRre.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/BSicon_extSTRre.svg/40px-BSicon_extSTRre.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/BSicon_tSTRla.svg/40px-BSicon_tSTRla.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/BSicon_extSTRla.svg/40px-BSicon_extSTRla.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e4/BSicon_tSTRle.svg/40px-BSicon_tSTRle.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/ee/BSicon_extSTRle.svg/40px-BSicon_extSTRle.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fd/BSicon_tSTR%2Bra.svg/40px-BSicon_tSTR%2Bra.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/BSicon_extSTR%2Bra.svg/40px-BSicon_extSTR%2Bra.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bd/BSicon_extSTR%2Bre.svg/40px-BSicon_extSTR%2Bre.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/BSicon_tSTR%2Bla.svg/40px-BSicon_tSTR%2Bla.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/BSicon_extSTR%2Bla.svg/40px-BSicon_extSTR%2Bla.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/BSicon_tSTR%2Ble.svg/40px-BSicon_tSTR%2Ble.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/BSicon_extSTR%2Ble.svg/40px-BSicon_extSTR%2Ble.svg.png"
+    ],
+    "高架": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4b/BSicon_hSTRa.svg/40px-BSicon_hSTRa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/81/BSicon_exhSTRa.svg/40px-BSicon_exhSTRa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/BSicon_hSTRe.svg/40px-BSicon_hSTRe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/02/BSicon_exhSTRe.svg/40px-BSicon_exhSTRe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/BSicon_hSTRaq.svg/40px-BSicon_hSTRaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/eb/BSicon_exhSTRaq.svg/40px-BSicon_exhSTRaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/BSicon_hSTReq.svg/40px-BSicon_hSTReq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b5/BSicon_exhSTReq.svg/40px-BSicon_exhSTReq.svg.png"
+    ],
+    "その他": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/BSicon_hKRZWa.svg/40px-BSicon_hKRZWa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/34/BSicon_exhKRZWa.svg/40px-BSicon_exhKRZWa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/BSicon_hKRZWe.svg/40px-BSicon_hKRZWe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/20/BSicon_exhKRZWe.svg/40px-BSicon_exhKRZWe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/BSicon_hKRZWaq.svg/40px-BSicon_hKRZWaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c8/BSicon_exhKRZWaq.svg/40px-BSicon_exhKRZWaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/BSicon_hKRZWeq.svg/40px-BSicon_hKRZWeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/46/BSicon_exhKRZWeq.svg/40px-BSicon_exhKRZWeq.svg.png"
+    ]
+  },
+  "駅": {
+    "一般駅": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/76/BSicon_BHF.svg/40px-BSicon_BHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/BSicon_eBHF.svg/40px-BSicon_eBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/11/BSicon_xBHF.svg/40px-BSicon_xBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/41/BSicon_exBHF.svg/40px-BSicon_exBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/27/BSicon_tBHF.svg/40px-BSicon_tBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/23/BSicon_etBHF.svg/40px-BSicon_etBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/BSicon_xtBHF.svg/40px-BSicon_xtBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/BSicon_extBHF.svg/40px-BSicon_extBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/BSicon_hBHF.svg/40px-BSicon_hBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/BSicon_ehBHF.svg/40px-BSicon_ehBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/09/BSicon_xhBHF.svg/40px-BSicon_xhBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/BSicon_exhBHF.svg/40px-BSicon_exhBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0c/BSicon_BHFq.svg/40px-BSicon_BHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/BSicon_eBHFq.svg/40px-BSicon_eBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/BSicon_xBHFq.svg/40px-BSicon_xBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0d/BSicon_exBHFq.svg/40px-BSicon_exBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/68/BSicon_tBHFq.svg/40px-BSicon_tBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/da/BSicon_etBHFq.svg/40px-BSicon_etBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5b/BSicon_xtBHFq.svg/40px-BSicon_xtBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/BSicon_extBHFq.svg/40px-BSicon_extBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b9/BSicon_hBHFq.svg/40px-BSicon_hBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/BSicon_ehBHFq.svg/40px-BSicon_ehBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/BSicon_xhBHFq.svg/40px-BSicon_xhBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ca/BSicon_exhBHFq.svg/40px-BSicon_exhBHFq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/BSicon_LBHF.svg/40px-BSicon_LBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/db/BSicon_eLBHF.svg/40px-BSicon_eLBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/cc/BSicon_exLBHF.svg/40px-BSicon_exLBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/BSicon_tLBHF.svg/40px-BSicon_tLBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bc/BSicon_etLBHF.svg/40px-BSicon_etLBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c7/BSicon_xtLBHF.svg/40px-BSicon_xtLBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/BSicon_extLBHF.svg/40px-BSicon_extLBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/BSicon_hWBHF.svg/40px-BSicon_hWBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/BSicon_ehWBHF.svg/40px-BSicon_ehWBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b6/BSicon_xhWBHF.svg/40px-BSicon_xhWBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/BSicon_exhWBHF.svg/40px-BSicon_exhWBHF.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6f/BSicon_hBHFae.svg/40px-BSicon_hBHFae.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/BSicon_BHF%2BGRZq.svg/40px-BSicon_BHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/BSicon_eBHF%2BGRZq.svg/40px-BSicon_eBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/BSicon_xBHF%2BGRZq.svg/40px-BSicon_xBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3e/BSicon_exBHF%2BGRZq.svg/40px-BSicon_exBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/BSicon_tBHF%2BGRZq.svg/40px-BSicon_tBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/BSicon_etBHF%2BGRZq.svg/40px-BSicon_etBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/BSicon_xtBHF%2BGRZq.svg/40px-BSicon_xtBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/BSicon_extBHF%2BGRZq.svg/40px-BSicon_extBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/BSicon_hBHF%2BGRZq.svg/40px-BSicon_hBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/BSicon_ehBHF%2BGRZq.svg/40px-BSicon_ehBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/BSicon_xhBHF%2BGRZq.svg/40px-BSicon_xhBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3d/BSicon_exhBHF%2BGRZq.svg/40px-BSicon_exhBHF%2BGRZq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/BSicon_KBHFxa.svg/40px-BSicon_KBHFxa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dc/BSicon_eKBHFxa.svg/40px-BSicon_eKBHFxa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/60/BSicon_tKBHFxa.svg/40px-BSicon_tKBHFxa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/BSicon_etKBHFxa.svg/40px-BSicon_etKBHFxa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/BSicon_hKBHFxa.svg/40px-BSicon_hKBHFxa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/BSicon_ehKBHFxa.svg/40px-BSicon_ehKBHFxa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/BSicon_KBHFxe.svg/40px-BSicon_KBHFxe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3f/BSicon_eKBHFxe.svg/40px-BSicon_eKBHFxe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/BSicon_tKBHFxe.svg/40px-BSicon_tKBHFxe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/BSicon_etKBHFxe.svg/40px-BSicon_etKBHFxe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/32/BSicon_hKBHFxe.svg/40px-BSicon_hKBHFxe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/00/BSicon_ehKBHFxe.svg/40px-BSicon_ehKBHFxe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/BSicon_KBHFxaq.svg/40px-BSicon_KBHFxaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/BSicon_eKBHFxaq.svg/40px-BSicon_eKBHFxaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/BSicon_tKBHFxaq.svg/40px-BSicon_tKBHFxaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4c/BSicon_etKBHFxaq.svg/40px-BSicon_etKBHFxaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/55/BSicon_hKBHFxaq.svg/40px-BSicon_hKBHFxaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/BSicon_ehKBHFxaq.svg/40px-BSicon_ehKBHFxaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/BSicon_KBHFxeq.svg/40px-BSicon_KBHFxeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c0/BSicon_eKBHFxeq.svg/40px-BSicon_eKBHFxeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/63/BSicon_tKBHFxeq.svg/40px-BSicon_tKBHFxeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/BSicon_etKBHFxeq.svg/40px-BSicon_etKBHFxeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6b/BSicon_hKBHFxeq.svg/40px-BSicon_hKBHFxeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/BSicon_ehKBHFxeq.svg/40px-BSicon_ehKBHFxeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/19/BSicon_KBHFa.svg/40px-BSicon_KBHFa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9b/BSicon_eKBHFa.svg/40px-BSicon_eKBHFa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b2/BSicon_xKBHFa.svg/40px-BSicon_xKBHFa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/BSicon_exKBHFa.svg/40px-BSicon_exKBHFa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0e/BSicon_tKBHFa.svg/40px-BSicon_tKBHFa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/13/BSicon_etKBHFa.svg/40px-BSicon_etKBHFa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/BSicon_extKBHFa.svg/40px-BSicon_extKBHFa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b7/BSicon_hKBHFa.svg/40px-BSicon_hKBHFa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/74/BSicon_exhKBHFa.svg/40px-BSicon_exhKBHFa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/de/BSicon_KBHFe.svg/40px-BSicon_KBHFe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/BSicon_eKBHFe.svg/40px-BSicon_eKBHFe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/BSicon_xKBHFe.svg/40px-BSicon_xKBHFe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/BSicon_exKBHFe.svg/40px-BSicon_exKBHFe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/44/BSicon_tKBHFe.svg/40px-BSicon_tKBHFe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/BSicon_etKBHFe.svg/40px-BSicon_etKBHFe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/53/BSicon_extKBHFe.svg/40px-BSicon_extKBHFe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/50/BSicon_hKBHFe.svg/40px-BSicon_hKBHFe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/52/BSicon_exhKBHFe.svg/40px-BSicon_exhKBHFe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/BSicon_KBHFaq.svg/40px-BSicon_KBHFaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b1/BSicon_eKBHFaq.svg/40px-BSicon_eKBHFaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/49/BSicon_xKBHFaq.svg/40px-BSicon_xKBHFaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8d/BSicon_exKBHFaq.svg/40px-BSicon_exKBHFaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/86/BSicon_tKBHFaq.svg/40px-BSicon_tKBHFaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/18/BSicon_etKBHFaq.svg/40px-BSicon_etKBHFaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/BSicon_extKBHFaq.svg/40px-BSicon_extKBHFaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/1/12/BSicon_hKBHFaq.svg/40px-BSicon_hKBHFaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/59/BSicon_exhKBHFaq.svg/40px-BSicon_exhKBHFaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/BSicon_KBHFeq.svg/40px-BSicon_KBHFeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9f/BSicon_eKBHFeq.svg/40px-BSicon_eKBHFeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/39/BSicon_xKBHFeq.svg/40px-BSicon_xKBHFeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/BSicon_exKBHFeq.svg/40px-BSicon_exKBHFeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/72/BSicon_tKBHFeq.svg/40px-BSicon_tKBHFeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/BSicon_etKBHFeq.svg/40px-BSicon_etKBHFeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d6/BSicon_extKBHFeq.svg/40px-BSicon_extKBHFeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/BSicon_hKBHFeq.svg/40px-BSicon_hKBHFeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7b/BSicon_exhKBHFeq.svg/40px-BSicon_exhKBHFeq.svg.png"
+    ]
+  },
+  "接続駅": {
+    "接続範囲": [
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b0/BSicon_HUB-Lq.svg/40px-BSicon_HUB-Lq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/BSicon_HUB-R.svg/40px-BSicon_HUB-R.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/ce/BSicon_HUB-L.svg/40px-BSicon_HUB-L.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/37/BSicon_HUB-Rq.svg/40px-BSicon_HUB-Rq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/4/45/BSicon_HUBaq.svg/40px-BSicon_HUBaq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/BSicon_HUBq.svg/40px-BSicon_HUBq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/BSicon_HUBeq.svg/40px-BSicon_HUBeq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f4/BSicon_HUBa.svg/40px-BSicon_HUBa.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e9/BSicon_HUB.svg/40px-BSicon_HUB.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/BSicon_HUBe.svg/40px-BSicon_HUBe.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/37/BSicon_HUBlf-R.svg/40px-BSicon_HUBlf-R.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/93/BSicon_HUBrf-L.svg/40px-BSicon_HUBrf-L.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/BSicon_HUBlg-L.svg/40px-BSicon_HUBlg-L.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b8/BSicon_HUBrg-R.svg/40px-BSicon_HUBrg-R.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/71/BSicon_HUBlf.svg/40px-BSicon_HUBlf.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7f/BSicon_HUBrf.svg/40px-BSicon_HUBrf.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a6/BSicon_HUBlg.svg/40px-BSicon_HUBlg.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/BSicon_HUBrg.svg/40px-BSicon_HUBrg.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7d/BSicon_HUBlf-L.svg/40px-BSicon_HUBlf-L.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/ff/BSicon_HUBrf-R.svg/40px-BSicon_HUBrf-R.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/BSicon_HUBlg-R.svg/40px-BSicon_HUBlg-R.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/BSicon_HUBrg-L.svg/40px-BSicon_HUBrg-L.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a9/BSicon_HUBx-2.svg/40px-BSicon_HUBx-2.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d1/BSicon_HUBx-3.svg/40px-BSicon_HUBx-3.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9a/BSicon_HUBx-R.svg/40px-BSicon_HUBx-R.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/88/BSicon_HUBx.svg/40px-BSicon_HUBx.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/08/BSicon_HUBx-L.svg/40px-BSicon_HUBx-L.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/BSicon_HUBx-1.svg/40px-BSicon_HUBx-1.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/62/BSicon_HUBx-Rq.svg/40px-BSicon_HUBx-Rq.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c2/BSicon_HUBx-4.svg/40px-BSicon_HUBx-4.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/BSicon_HUBx-13.svg/40px-BSicon_HUBx-13.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/BSicon_HUBx-24.svg/40px-BSicon_HUBx-24.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0f/BSicon_HUBtf-2.svg/40px-BSicon_HUBtf-2.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ab/BSicon_HUBtf.svg/40px-BSicon_HUBtf.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/BSicon_HUBtf-3.svg/40px-BSicon_HUBtf-3.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2d/BSicon_HUBtg-1.svg/40px-BSicon_HUBtg-1.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2b/BSicon_HUBtg.svg/40px-BSicon_HUBtg.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/21/BSicon_HUBtg-4.svg/40px-BSicon_HUBtg-4.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/0/01/BSicon_HUBtl-1.svg/40px-BSicon_HUBtl-1.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/BSicon_HUBtl.svg/40px-BSicon_HUBtl.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6a/BSicon_HUBtl-2.svg/40px-BSicon_HUBtl-2.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/BSicon_HUBtr-4.svg/40px-BSicon_HUBtr-4.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ae/BSicon_HUBtr.svg/40px-BSicon_HUBtr.svg.png",
+      "https://upload.wikimedia.org/wikipedia/commons/thumb/b/bb/BSicon_HUBtr-3.svg/40px-BSicon_HUBtr-3.svg.png"
+    ]
+  }
+};
+
+// 既知URLセットの構築
+function initKnownUrls() {
+  allKnownUrls.clear();
+  for (let cat in galleryCategories) {
+    for (let sub in galleryCategories[cat]) {
+      galleryCategories[cat][sub].forEach(url => allKnownUrls.add(url));
+    }
+  }
+}
+
+// グリッド初期描画
+function initGrid(){
+  const grid = document.getElementById('grid');
+  grid.style.setProperty('--cols', cols);
+  grid.innerHTML = '';
+  for(let r=0; r<rows; r++){
+    for(let c=0; c<cols; c++){
+      const div = document.createElement('div');
+      div.className = 'cell border';
+      div.id = `cell-${r}-${c}`;
+      
+      const base = document.createElement('div');
+      base.className = 'attached';
+      base.id = `base-${r}-${c}`;
+      
+      const overlay = document.createElement('div');
+      overlay.className = 'attached';
+      overlay.id = `overlay-${r}-${c}`;
+      
+      const preview = document.createElement('div');
+      preview.className = 'preview';
+      preview.id = `preview-${r}-${c}`;
+      
+      div.append(base, overlay, preview);
+      
+      div.onclick = () => {
+        if(!selectedImage) return;
+        // If selected image is an overlay (HUB/POINTER), always set it to the overlay layer.
+        // Do NOT toggle it off when it's the same image — replacing with the same HUB should keep it.
+        if(isOverlayUrl(selectedImage)){
+          if(allKnownUrls.has(selectedImage)){
+            cells[r][c].overlay = selectedImage;
+          }
+          // if overlay is unknown, do nothing (keep existing overlay)
+        } else {
+          // placing a base image
+          cells[r][c].base = selectedImage;
+          // if placing shiro as base, clear overlay (keeps behavior: shiro alone means no overlay)
+          if(selectedImage.includes('shiro.png')) cells[r][c].overlay = null;
+        }
+        refresh();
+      };
+      
+      div.oncontextmenu = (e) => {
+        e.preventDefault();
+        cells[r][c].base = placeholder;
+        cells[r][c].overlay = null;
+        refresh();
+      };
+      
+      div.onmouseenter = () => {
+        if(!selectedImage) return;
+        preview.style.backgroundImage = `url(${selectedImage})`;
+        preview.style.display = 'block';
+      };
+      div.onmouseleave = () => {
+        preview.style.display = 'none';
+      };
+      
+      grid.appendChild(div);
+    }
+  }
+  refresh();
+}
+
+// 画面表示更新
+function refresh(){
+  for(let r=0; r<rows; r++){
+    for(let c=0; c<cols; c++){
+      const b = document.getElementById(`base-${r}-${c}`);
+      const o = document.getElementById(`overlay-${r}-${c}`);
+      b.style.backgroundImage = `url(${cells[r][c].base || placeholder})`;
+      o.style.backgroundImage = cells[r][c].overlay ? `url(${cells[r][c].overlay})` : 'none';
+    }
+  }
+}
+
+// 未登録画像リストの表示
+function updateUnsupportedPreview(urls){
+  const wrapper = document.getElementById('unsupportedWrapper');
+  const container = document.getElementById('unsupportedGallery');
+  if(!wrapper || !container) return;
+
+  const uniqueUrls = [...new Set(urls)];
+  const unsupported = uniqueUrls.filter(url => !allKnownUrls.has(url) && url !== placeholder);
+
+  if(unsupported.length === 0){
+    wrapper.style.display = 'none';
+    return;
+  }
+
+  wrapper.style.display = 'block';
+  container.innerHTML = '';
+  unsupported.forEach(url => {
+    const img = document.createElement('div');
+    img.className = 'unsupportedItem';
+    img.style.backgroundImage = `url(${url})`;
+    img.title = `未登録: ${url}`;
+    container.appendChild(img);
+  });
+}
+
+// 正規表現でURL抽出
+function parseRefs(text) {
+  const regex = /&ref\(([^,)]+).*?\)/g;
+  let matches = [];
+  let m;
+  while ((m = regex.exec(text)) !== null) {
+    matches.push(m[1].trim());
+  }
+  return matches;
+}
+
+// インプット実行（ここが今回のメイン修正）
+document.getElementById('doInput').onclick=()=>{
+  const inputArea = document.getElementById('inputArea');
+  const inputVal = inputArea.value;
+  if(!inputVal.trim()) return;
+
+  // リセット
+  for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ cells[r][c].base = placeholder; cells[r][c].overlay = null; }
+  
+  const allDetectedUrls = parseRefs(inputVal);
+  updateUnsupportedPreview(allDetectedUrls);
+
+  const rowsData = inputVal.split('&br()');
+  rowsData.forEach((rowData, r)=>{
+    if(r >= rows) return;
+    const matches = parseRefs(rowData);
+    let c=0;
+    let i=0;
+    while(c < cols && i < matches.length){
+      let url1 = matches[i];
+      let url2 = matches[i+1];
+
+      // 【重要】登録済みかチェックし、なければ shiro に差し替え
+      const safeUrl1 = allKnownUrls.has(url1) ? url1 : placeholder;
+      const safeUrl2 = (url2 !== undefined && allKnownUrls.has(url2)) ? url2 : (url2 !== undefined ? placeholder : undefined);
+      
+      // 重ね合わせパターンの処理
+      // (url1がHUBの場合)
+      if(isOverlayUrl(url1)){
+        // url1 が HUB (overlay) の場合
+        // - url2 が存在するなら overlay=url1, base=safeUrl2
+        // - url2 が無い（単体配置）の場合は overlay=url1, base=placeholder（shiro）
+        if(allKnownUrls.has(url1)){
+          cells[r][c].overlay = url1;
+        } else {
+          cells[r][c].overlay = null; // 未登録の HUB は反映しない
+        }
+        if(url2 !== undefined){
+          cells[r][c].base = safeUrl2;
+          i += 2;
+        } else {
+          cells[r][c].base = placeholder;
+          i += 1;
+        }
+      } else {
+        // 通常の base のみの配置
+        cells[r][c].base = safeUrl1;
+        cells[r][c].overlay = null;
+        i += 1;
+      }
+      c += 1;
+    }
+  });
+  refresh();
+  alert("読み込み完了。未登録画像は shiro.png になりました。");
+};
+
+// アウトプット生成
+document.getElementById('doOutput').onclick=()=>{
+  let out=[];
+  let lastMeaningfulRow = -1;
+  for(let r=rows-1; r>=0; r--){
+    let hasData = false;
+    for(let c=0; c<cols; c++){
+      if(cells[r][c].base !== placeholder || cells[r][c].overlay) { hasData=true; break; }
+    }
+    if(hasData){ lastMeaningfulRow=r; break; }
+  }
+
+  for(let r=0; r<=lastMeaningfulRow; r++){
+    let line='';
+    let lastMeaningfulCol = -1;
+    for(let c=cols-1; c>=0; c--){
+      if(cells[r][c].base !== placeholder || cells[r][c].overlay) { lastMeaningfulCol=c; break; }
+    }
+    for(let c=0; c<=lastMeaningfulCol; c++){
+      const cell = cells[r][c];
+      if(cell.overlay){
+        line += `&ref(${cell.overlay},,width=20,height=20)&ref(${cell.base},,width=20,height=20)`;
+      } else {
+        line += `&ref(${cell.base},,width=20,height=20)`;
+      }
+    }
+    out.push(line);
+  }
+  document.getElementById('outputArea').value = out.join('&br()\n');
+};
+
+document.getElementById('copyOutput').onclick=()=>{
+  const area = document.getElementById('outputArea');
+  area.select();
+  document.execCommand('copy');
+  const msg = document.getElementById('copyMsg');
+  msg.style.display = 'inline';
+  setTimeout(()=> msg.style.display='none', 1500);
+};
+
+// パレットの描画
+function renderGallery(){
+  const gallery = document.getElementById('gallery');
+  gallery.innerHTML = '';
+  const subs = galleryCategories[currentCategory];
+  if(!subs) return;
+
+  for(let subTitle in subs){
+    const group = document.createElement('div');
+    group.className = 'subGroup';
+    const title = document.createElement('div');
+    title.className = 'subTitle';
+    title.textContent = subTitle;
+    const list = document.createElement('div');
+    list.className = 'galleryList';
+    
+    subs[subTitle].forEach(url => {
+      const item = document.createElement('div');
+      item.className = 'galleryItem';
+      if(selectedImage === url) item.style.borderColor = '#007bff';
+      
+      const thumb = document.createElement('div');
+      thumb.className = 'galleryThumb';
+      thumb.style.backgroundImage = `url(${url})`;
+      
+      item.onclick = () => {
+        selectedImage = url;
+        const prev = document.getElementById('selectedPreview');
+        prev.style.backgroundImage = `url(${url})`;
+        prev.textContent = '';
+        renderGallery();
+      };
+      item.appendChild(thumb);
+      list.appendChild(item);
+    });
+    group.append(title, list);
+    gallery.appendChild(group);
+  }
+}
+
+window.onload = () => {
+  initKnownUrls();
+  const catSelect = document.getElementById('categorySelect');
+  for(let cat in galleryCategories){
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = cat;
+    catSelect.appendChild(opt);
+  }
+  catSelect.onchange = (e) => { currentCategory = e.target.value; renderGallery(); };
+  
+  document.getElementById('toggleBorder').onchange = (e) => {
+    document.querySelectorAll('.cell').forEach(c => c.classList.toggle('border', e.target.checked));
+  };
+  
+  document.getElementById('resetGrid').onclick = () => {
+    if(confirm("全てリセットしますか？")){
+      for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){ cells[r][c].base=placeholder; cells[r][c].overlay=null; }
+      refresh();
+    }
+  };
+
+  initGrid();
+  renderGallery();
+};
+</script>
+</body>
+</html>
