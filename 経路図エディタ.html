@@ -72,7 +72,7 @@ button{ padding:6px 10px; cursor:pointer; font-size: 12px; }
   .left{ order:1; width:100%; padding:var(--padding); }
   .right{ order:2; width:100%; padding:var(--padding); border-left:none; border-top:1px solid #eee; box-sizing:border-box; }
   .right{ flex: none; }
-  .galleryList{ grid-template-columns: repeat(4, 1fr); gap:6px; }
+  .galleryList{ grid-template-columns: repeat(6, 1fr); gap:6px; }
   .galleryItem{ width:32px; height:32px; }
   .selectedPreview{ width:48px; height:48px; }
   .galleryThumb{ background-size:contain; }
@@ -109,17 +109,6 @@ button{ padding:6px 10px; cursor:pointer; font-size: 12px; }
     margin-bottom: 46vh; /* fixed right panel height + margin */
   }
 }
-
-/* PCでも固定したい場合 */
-@media (min-width: 901px){
-  .right{
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    overflow-y: auto;
-  }
-}
-
 </style>
 </head>
 <body>
