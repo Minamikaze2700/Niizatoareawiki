@@ -82,26 +82,26 @@ button{ padding:6px 10px; cursor:pointer; font-size: 12px; }
   </div>
 
   <div>
-    <div class="galleryHeader">画像パレット</div>
+    <div class="galleryHeader">アイコン一覧</div>
     <div class="galleryControls">
       <select id="categorySelect" style="width:100%"></select>
     </div>
     <div id="gallery"></div>
   </div>
 
-  <div><b>アウトプット</b>
+  <div><b>出力</b>
     <textarea id="outputArea" readonly></textarea>
     <div class="flexRow" style="margin-top:6px;">
-      <button id="doOutput" class="small">生成</button>
+      <button id="doOutput" class="small">出力</button>
       <button id="copyOutput" class="small">コピー</button>
       <span id="copyMsg" class="note" style="display:none;">OK</span>
     </div>
   </div>
 
-  <div><b>インプット</b>
+  <div><b>入力</b>
     <textarea id="inputArea"></textarea>
     <div style="margin-top:6px;">
-      <button id="doInput" class="small">読み込み実行</button>
+      <button id="doInput" class="small">読み込み</button>
     </div>
     
     <div id="unsupportedWrapper" style="display:none;">
@@ -653,7 +653,7 @@ document.getElementById('doInput').onclick=()=>{
     }
   });
   refresh();
-  alert("読み込み完了。未登録画像は shiro.png になりました。");
+  alert("読み込み完了");
 };
 
 // アウトプット生成
