@@ -909,6 +909,8 @@ document.getElementById('doInput').onclick=()=>{
 // アウトプット生成
 document.getElementById('doOutput').onclick = () => {
   let out = [];
+
+  // 最後の意味ある行（下端）
   let lastMeaningfulRow = -1;
   for (let r = rows - 1; r >= 0; r--) {
     let hasData = false;
@@ -921,21 +923,46 @@ document.getElementById('doOutput').onclick = () => {
     document.getElementById('outputArea').value = '';
     return;
   }
+
+  // 上端から連続して「全列 shiro」の行数を数える（topTrim）
+  let topTrim = 0;
+  for (let r = 0; r <= lastMeaningfulRow; r++) {
+    let allShiro = true;
+    for (let c = 0; c < cols; c++) {
+      if (cells[r][c].base !== placeholder || cells[r][c].overlay) {
+        allShiro = false;
+        break;
+      }
+    }
+    if (allShiro) topTrim++;
+    else break;
+  }
+
+  // 左端から連続して「全行 shiro」の列数を数える（leftTrim）
   let leftTrim = 0;
   for (let c = 0; c < cols; c++) {
     let allShiro = true;
-    for (let r = 0; r <= lastMeaningfulRow; r++) {
-      if (cells[r][c].base !== placeholder || cells[r][c].overlay) { allShiro = false; break; }
+    for (let r = topTrim; r <= lastMeaningfulRow; r++) {
+      if (cells[r][c].base !== placeholder || cells[r][c].overlay) {
+        allShiro = false;
+        break;
+      }
     }
     if (allShiro) leftTrim++;
     else break;
   }
-  for (let r = 0; r <= lastMeaningfulRow; r++) {
+
+  // 出力
+  for (let r = topTrim; r <= lastMeaningfulRow; r++) {
     let lastMeaningfulCol = -1;
     for (let c = cols - 1; c >= leftTrim; c--) {
-      if (cells[r][c].base !== placeholder || cells[r][c].overlay) { lastMeaningfulCol = c; break; }
+      if (cells[r][c].base !== placeholder || cells[r][c].overlay) {
+        lastMeaningfulCol = c;
+        break;
+      }
     }
     if (lastMeaningfulCol < leftTrim) continue;
+
     let line = '';
     for (let c = leftTrim; c <= lastMeaningfulCol; c++) {
       const cell = cells[r][c];
@@ -947,6 +974,7 @@ document.getElementById('doOutput').onclick = () => {
     }
     out.push(line);
   }
+
   document.getElementById('outputArea').value = out.join('&br()\n');
 };
 
