@@ -907,26 +907,39 @@ document.getElementById('doInput').onclick=()=>{
 };
 
 // アウトプット生成
-document.getElementById('doOutput').onclick=()=>{
-  let out=[];
+document.getElementById('doOutput').onclick = () => {
+  let out = [];
   let lastMeaningfulRow = -1;
-  for(let r=rows-1; r>=0; r--){
+  for (let r = rows - 1; r >= 0; r--) {
     let hasData = false;
-    for(let c=0; c<cols; c++){
-      if(cells[r][c].base !== placeholder || cells[r][c].overlay) { hasData=true; break; }
+    for (let c = 0; c < cols; c++) {
+      if (cells[r][c].base !== placeholder || cells[r][c].overlay) { hasData = true; break; }
     }
-    if(hasData){ lastMeaningfulRow=r; break; }
+    if (hasData) { lastMeaningfulRow = r; break; }
   }
-
-  for(let r=0; r<=lastMeaningfulRow; r++){
-    let line='';
-    let lastMeaningfulCol = -1;
-    for(let c=cols-1; c>=0; c--){
-      if(cells[r][c].base !== placeholder || cells[r][c].overlay) { lastMeaningfulCol=c; break; }
+  if (lastMeaningfulRow === -1) {
+    document.getElementById('outputArea').value = '';
+    return;
+  }
+  let leftTrim = 0;
+  for (let c = 0; c < cols; c++) {
+    let allShiro = true;
+    for (let r = 0; r <= lastMeaningfulRow; r++) {
+      if (cells[r][c].base !== placeholder || cells[r][c].overlay) { allShiro = false; break; }
     }
-    for(let c=0; c<=lastMeaningfulCol; c++){
+    if (allShiro) leftTrim++;
+    else break;
+  }
+  for (let r = 0; r <= lastMeaningfulRow; r++) {
+    let lastMeaningfulCol = -1;
+    for (let c = cols - 1; c >= leftTrim; c--) {
+      if (cells[r][c].base !== placeholder || cells[r][c].overlay) { lastMeaningfulCol = c; break; }
+    }
+    if (lastMeaningfulCol < leftTrim) continue;
+    let line = '';
+    for (let c = leftTrim; c <= lastMeaningfulCol; c++) {
       const cell = cells[r][c];
-      if(cell.overlay){
+      if (cell.overlay) {
         line += `&ref(${cell.overlay},,width=20,height=20)&ref(${cell.base},,width=20,height=20)`;
       } else {
         line += `&ref(${cell.base},,width=20,height=20)`;
