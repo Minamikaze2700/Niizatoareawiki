@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>atwikiカレンダー生成（春分・秋分自動計算）</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; padding: 20px; background-color: #f0f2f5; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { color: #5c67f2; border-bottom: 2px solid #5c67f2; padding-bottom: 10px; }
+        .input-group { margin-bottom: 20px; }
+        label { font-weight: bold; display: block; margin-bottom: 8px; }
+        input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        #year { width: 100px; }
+        #holidays { width: 100%; }
+        .btn-group { display: flex; gap: 10px; margin-bottom: 20px; }
+        button { flex: 1; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .gen-btn { background: #5c67f2; color: white; }
+        .copy-btn { background: #34d399; color: white; }
+        textarea { width: 100%; height: 400px; font-family: 'Consolas', monospace; padding: 15px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; box-sizing: border-box; }
+        .hint { font-size: 0.85em; color: #666; margin-top: 5px; background: #fff8e1; padding: 10px; border-left: 4px solid #ffc107; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>atwikiカレンダー生成ツール Ver.3</h2>
+    
+    <div class="input-group">
+        <label>対象年:</label>
+        <input type="number" id="year" value="2026">
+    </div>
+
+    <div class="input-group">
+        <label>基本祝日の設定 (自動計算以外):</label>
+        <input type="text" id="holidays" value="1/1, 1/2ndMon, 2/11, 2/23, 4/29, 5/3, 5/4, 5/5, 7/3rdMon, 8/11, 9/3rdMon, 10/2ndMon, 11/3, 11/23">
+        <div class="hint">
+            ※<strong>春分の日・秋分の日</strong>、および<strong>振替休日・国民の休日</strong>はシステムが自動で算出します。<br>
+            ※上記リストにない独自の記念日を追加したい場合は「月/日」形式で追記してください。
+        </div>
+    </div>
+
+    <div class="btn-group">
+        <button class="gen-btn" onclick="generateCalendar()">カレンダーを生成</button>
+        <button class="copy-btn" onclick="copyToClipboard()">結果をコピー</button>
+    </div>
+
+    <textarea id="output" readonly></textarea>
+</div>
+
+<script>
+// 春分・秋分の日の簡易計算
+function getEquinox(year, type) {
+    let day;
+    if (type === 'spring') {
+        // 春分の日 (3月)
+        if (year <= 1947) return null;
+        if (year <= 1979) day = Math.floor(20.8357 + (0.242194 * (year - 1980)) - Math.floor((year - 1980) / 4));
+        else if (year <= 2099) day = Math.floor(20.8431 + (0.242194 * (year - 1980)) - Math.floor((year - 1980) / 4));
+        else day = Math.floor(21.8510 + (0.242194 * (year - 1980)) - Math.floor((year - 1980) / 4));
+        return `3/${day}`;
+    } else {
+        // 秋分の日 (9月)
+        if (year <= 1947) return null;
+        if (year <= 1979) day = Math.floor(23.2588 + (0.242194 * (year - 1980)) - Math.floor((year - 1980) / 4));
+        else if (year <= 2099) day = Math.floor(23.2488 + (0.242194 * (year - 1980)) - Math.floor((year - 1980) / 4));
+        else day = Math.floor(24.2488 + (0.242194 * (year - 1980)) - Math.floor((year - 1980) / 4));
+        return `9/${day}`;
+    }
+}
+
+function generateCalendar() {
+    const year = parseInt(document.getElementById('year').value);
+    const holidayInput = document.getElementById('holidays').value;
+    const holidayMap = new Map();
+
+    // 1. 基本祝日の計算
+    const baseList = holidayInput.split(',').map(s => s.trim());
+    baseList.push(getEquinox(year, 'spring')); // 春分追加
+    baseList.push(getEquinox(year, 'autumn')); // 秋分追加
+
+    for (let m = 0; m < 12; m++) {
+        const lastDay = new Date(year, m + 1, 0).getDate();
+        for (let d = 1; d <= lastDay; d++) {
+            if (checkIsBase(year, m, d, baseList)) {
+                holidayMap.set(`${m+1}/${d}`, true);
+            }
+        }
+    }
+
+    // 2. 振替休日の判定
+    const finalHolidays = new Set(holidayMap.keys());
+    for (let m = 0; m < 12; m++) {
+        const lastDay = new Date(year, m + 1, 0).getDate();
+        for (let d = 1; d <= lastDay; d++) {
+            const date = new Date(year, m, d);
+            if (date.getDay() === 0 && holidayMap.has(`${m+1}/${d}`)) {
+                let next = new Date(year, m, d + 1);
+                while (finalHolidays.has(`${next.getMonth()+1}/${next.getDate()}`)) {
+                    next.setDate(next.getDate() + 1);
+                }
+                if (next.getDay() !== 0 && next.getDay() !== 6) {
+                    finalHolidays.add(`${next.getMonth()+1}/${next.getDate()}`);
+                }
+            }
+        }
+    }
+
+    // 3. 国民の休日の判定
+    for (let m = 0; m < 12; m++) {
+        const lastDay = new Date(year, m + 1, 0).getDate();
+        for (let d = 2; d < lastDay; d++) {
+            if (!finalHolidays.has(`${m+1}/${d}`)) {
+                if (finalHolidays.has(`${m+1}/${d-1}`) && finalHolidays.has(`${m+1}/${d+1}`)) {
+                    const date = new Date(year, m, d);
+                    if (date.getDay() !== 0 && date.getDay() !== 6) finalHolidays.add(`${m+1}/${d}`);
+                }
+            }
+        }
+    }
+
+    // 4. 出力
+    let result = "";
+    for (let m = 0; m < 12; m++) {
+        result += `|>|>|>|>|>|>|BGCOLOR(#ccccff):CENTER:${m + 1}月|\n`;
+        result += `|BGCOLOR(#eeeeff):CENTER:&color(#ff0000){日}|BGCOLOR(#eeeeff):CENTER:月|BGCOLOR(#eeeeff):CENTER:火|BGCOLOR(#eeeeff):CENTER:水|BGCOLOR(#eeeeff):CENTER:木|BGCOLOR(#eeeeff):CENTER:金|BGCOLOR(#eeeeff):CENTER:&color(deepskyblue){土}|\n`;
+        const firstDay = new Date(year, m, 1);
+        const lastDay = new Date(year, m + 1, 0);
+        let curD = 1;
+        let dow = firstDay.getDay();
+        let row = "|".repeat(dow + 1);
+        while (curD <= lastDay.getDate()) {
+            const isH = finalHolidays.has(`${m+1}/${curD}`);
+            row += `CENTER:${(dow===0||isH)?'&color(#ff0000){'+curD+'}':(dow===6?'&color(deepskyblue){'+curD+'}':curD)}|`;
+            if (dow === 6) { result += row + "\n"; row = "|"; }
+            curD++; dow = (dow + 1) % 7;
+        }
+        if (dow !== 0) result += row + "|".repeat(7 - dow) + "\n";
+        result += "\n";
+    }
+    document.getElementById('output').value = result.trim();
+}
+
+function checkIsBase(y, m, d, list) {
+    const date = new Date(y, m, d);
+    const mStr = (m + 1).toString();
+    for (let h of list) {
+        if (h === `${mStr}/${d}`) return true;
+        if (h.includes('ndMon') && date.getDay() === 1 && Math.ceil(d/7) === 2 && h.startsWith(mStr)) return true;
+        if (h.includes('rdMon') && date.getDay() === 1 && Math.ceil(d/7) === 3 && h.startsWith(mStr)) return true;
+    }
+    return false;
+}
+
+async function copyToClipboard() {
+    const text = document.getElementById('output');
+    try {
+        await navigator.clipboard.writeText(text.value);
+        alert("コピーしました！");
+    } catch (err) {
+        text.select(); document.execCommand('copy'); alert("コピーしました！");
+    }
+}
+</script>
+</body>
+</html>
