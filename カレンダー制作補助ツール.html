@@ -2,107 +2,158 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <title>atwikiカレンダー生成</title>
+    <title>atwikiカレンダー生成 & プレビュー</title>
     <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; padding: 20px; background-color: #f0f2f5; }
-        .container { max-width: 800px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-        h2 { color: #5c67f2; border-bottom: 2px solid #5c67f2; padding-bottom: 10px; text-align: center; }
-        .input-group { margin-bottom: 20px; text-align: center; }
-        label { font-weight: bold; margin-right: 10px; }
-        input { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 120px; font-size: 1.1em; text-align: center; }
-        .btn-group { display: flex; gap: 10px; margin-bottom: 20px; }
-        button { flex: 1; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1em; }
+        /* ツール全体の基本スタイル */
+        body { font-family: sans-serif; background-color: #f0f2f5; padding: 20px; color: #333; }
+        .container { max-width: 1500px; margin: auto; background: white; padding: 20px; border-radius: 12px; shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .controls { margin-bottom: 20px; padding: 15px; background: #eef2ff; border-radius: 8px; }
+        textarea { width: 100%; height: 200px; font-family: monospace; margin: 10px 0; }
+        button { padding: 10px 20px; cursor: pointer; border-radius: 4px; border: none; font-weight: bold; }
         .gen-btn { background: #5c67f2; color: white; }
         .copy-btn { background: #34d399; color: white; }
-        textarea { width: 100%; height: 450px; font-family: 'Consolas', monospace; padding: 15px; border: 1px solid #ddd; border-radius: 6px; background: #fafafa; box-sizing: border-box; resize: vertical; }
+        
+        hr { margin: 30px 0; border: 0; border-top: 2px solid #ddd; }
+        h3 { color: #5c67f2; }
+
+        /* --- ユーザー提供のCSS（プレビュー用） --- */
+        #preview-area { padding: 20px; overflow: hidden; background: #fff; }
+
+        /* 1. 条件に一致するテーブルの特定とレイアウト */
+        #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]):has(tr:nth-child(2) td:nth-child(7)):not(:has(tr:nth-child(2) td:nth-child(8))) {
+            float: left !important;
+            width: 300px !important;
+            border: none !important;
+            border-collapse: separate !important;
+            border-spacing: 2px !important;
+            margin-left: 1em !important;
+            margin-bottom: 2em !important;
+            table-layout: fixed !important;
+            background: none !important;
+            border-bottom: 2px solid #eeeeff !important;
+        }
+
+        /* 2. AtWikiの自動挿入 <br> を無効化 */
+        #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]) + br {
+            display: none !important;
+        }
+
+        /* 3. 4つ並んだら左端へ強制改行 */
+        #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]):nth-of-type(4n+1) {
+            clear: left !important;
+        }
+
+        /* 4. 回り込み解除 */
+        #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]):last-of-type::after {
+            content: "";
+            display: block;
+            clear: both;
+        }
+        #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]) + *:not(table):not(br) {
+            clear: both !important;
+        }
+
+        /* 5. セル設定 */
+        #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]) td {
+            border: none !important;
+            padding: 0 !important;
+            height: 28px !important;
+            line-height: 28px !important;
+            text-align: center !important;
+            vertical-align: middle !important;
+            background-image: none !important;
+            overflow: hidden;
+        }
+
+        /* 6. 行の背景リセット */
+        #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]) tr {
+            background: none !important;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>atwikiカレンダー生成</h2>
+    <h2>atwikiカレンダー生成ツール</h2>
     
-    <div class="input-group">
-        <label>生成する年:</label>
-        <input type="number" id="year" value="2026">
+    <div class="controls">
+        <label>対象年: </label>
+        <input type="number" id="year" value="2026" style="width: 80px; padding: 5px;">
+        <button class="gen-btn" onclick="generate()">カレンダー生成</button>
+        <button class="copy-btn" onclick="copyText()">コードをコピー</button>
     </div>
 
-    <div class="btn-group">
-        <button class="gen-btn" onclick="generateCalendar()">カレンダーを生成</button>
-        <button class="copy-btn" onclick="copyToClipboard()">結果をコピー</button>
-    </div>
+    <textarea id="output" readonly placeholder="ここにatwiki構文が出力されます"></textarea>
 
-    <textarea id="output" readonly placeholder="ここにatwiki用コードが出力されます"></textarea>
+    <hr>
+
+    <h3>プレビュー (提供されたCSSを適用済み)</h3>
+    <div id="preview-area">
+        </div>
 </div>
 
 <script>
-function generateCalendar() {
+function generate() {
     const year = parseInt(document.getElementById('year').value);
-    if (isNaN(year)) { alert("有効な年を入力してください"); return; }
-
-    let result = "";
+    let wikiResult = "";
+    let htmlResult = "";
 
     for (let m = 0; m < 12; m++) {
-        // 月ヘッダー
-        result += `|>|>|>|>|>|>|BGCOLOR(#ccccff):CENTER:${m + 1}月|\n`;
-        // 曜日ヘッダー
-        result += `|BGCOLOR(#eeeeff):CENTER:&color(#ff0000){日}|BGCOLOR(#eeeeff):CENTER:月|BGCOLOR(#eeeeff):CENTER:火|BGCOLOR(#eeeeff):CENTER:水|BGCOLOR(#eeeeff):CENTER:木|BGCOLOR(#eeeeff):CENTER:金|BGCOLOR(#eeeeff):CENTER:&color(deepskyblue){土}|\n`;
-
         const firstDay = new Date(year, m, 1);
         const lastDay = new Date(year, m + 1, 0);
         let curD = 1;
         let dow = firstDay.getDay();
 
-        // 初週の空白埋め
-        let row = "|".repeat(dow + 1);
+        // --- wiki構文生成 ---
+        let wikiMonth = `|>|>|>|>|>|>|BGCOLOR(#ccccff):CENTER:${m + 1}月|\n`;
+        wikiMonth += `|BGCOLOR(#eeeeff):CENTER:&color(#ff0000){日}|BGCOLOR(#eeeeff):CENTER:月|BGCOLOR(#eeeeff):CENTER:火|BGCOLOR(#eeeeff):CENTER:水|BGCOLOR(#eeeeff):CENTER:木|BGCOLOR(#eeeeff):CENTER:金|BGCOLOR(#eeeeff):CENTER:&color(deepskyblue){土}|\n`;
+
+        // --- プレビュー用HTML生成 ---
+        let htmlMonth = `<table><tr><td colspan="7" style="background-color:#ccccff;">${m + 1}月</td></tr>`;
+        htmlMonth += `<tr><td style="background-color:#eeeeff; color:#ff0000;">日</td><td style="background-color:#eeeeff;">月</td><td style="background-color:#eeeeff;">火</td><td style="background-color:#eeeeff;">水</td><td style="background-color:#eeeeff;">木</td><td style="background-color:#eeeeff;">金</td><td style="background-color:#eeeeff; color:deepskyblue;">土</td></tr>`;
+
+        let wikiRow = "|".repeat(dow + 1);
+        let htmlRow = "<tr>" + "<td></td>".repeat(dow);
 
         while (curD <= lastDay.getDate()) {
-            let dateText = "";
-            if (dow === 0) {
-                // 日曜日
-                dateText = `&color(#ff0000){${curD}}`;
-            } else if (dow === 6) {
-                // 土曜日
-                dateText = `&color(deepskyblue){${curD}}`;
-            } else {
-                // 平日
-                dateText = `${curD}`;
-            }
+            let color = "";
+            if (dow === 0) color = "#ff0000";
+            if (dow === 6) color = "deepskyblue";
 
-            row += `CENTER:${dateText}|`;
+            let dateContent = color ? `&color(${color}){${curD}}` : `${curD}`;
+            let htmlContent = color ? `<span style="color:${color}">${curD}</span>` : `${curD}`;
+
+            wikiRow += `CENTER:${dateContent}|`;
+            htmlRow += `<td>${htmlContent}</td>`;
 
             if (dow === 6) {
-                result += row + "\n";
-                row = "|";
+                wikiMonth += wikiRow + "\n";
+                wikiRow = "|";
+                htmlMonth += htmlRow + "</tr>";
+                htmlRow = "<tr>";
             }
             curD++;
             dow = (dow + 1) % 7;
         }
 
-        // 最終週の空白埋め
         if (dow !== 0) {
-            row += "|".repeat(7 - dow);
-            result += row + "\n";
+            wikiMonth += wikiRow + "|".repeat(7 - dow) + "\n";
+            htmlMonth += htmlRow + "<td></td>".repeat(7 - dow) + "</tr>";
         }
-
-        // 各月の間に空行を追加
-        result += "\n";
+        
+        wikiResult += wikiMonth + "\n";
+        htmlResult += htmlMonth + "</table><br>"; // atwikiの挙動を模して<br>を挿入
     }
 
-    document.getElementById('output').value = result.trim();
+    document.getElementById('output').value = wikiResult.trim();
+    document.getElementById('preview-area').innerHTML = htmlResult;
 }
 
-async function copyToClipboard() {
-    const text = document.getElementById('output');
-    if (!text.value) return;
-    try {
-        await navigator.clipboard.writeText(text.value);
-        alert("クリップボードにコピーしました！");
-    } catch (err) {
-        text.select();
-        document.execCommand('copy');
-        alert("コピーしました！");
-    }
+async function copyText() {
+    const text = document.getElementById('output').value;
+    if (!text) return;
+    await navigator.clipboard.writeText(text);
+    alert("コピーしました。atwikiの編集画面に貼り付けてください。");
 }
 </script>
 
