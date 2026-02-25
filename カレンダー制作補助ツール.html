@@ -6,9 +6,9 @@
     <style>
         /* ツール全体の基本スタイル */
         body { font-family: sans-serif; background-color: #f0f2f5; padding: 20px; color: #333; }
-        .container { max-width: 1500px; margin: auto; background: white; padding: 20px; border-radius: 12px; shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .container { max-width: 1500px; margin: auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         .controls { margin-bottom: 20px; padding: 15px; background: #eef2ff; border-radius: 8px; }
-        textarea { width: 100%; height: 200px; font-family: monospace; margin: 10px 0; }
+        textarea { width: 100%; height: 200px; font-family: monospace; margin: 10px 0; box-sizing: border-box; }
         button { padding: 10px 20px; cursor: pointer; border-radius: 4px; border: none; font-weight: bold; }
         .gen-btn { background: #5c67f2; color: white; }
         .copy-btn { background: #34d399; color: white; }
@@ -16,21 +16,23 @@
         hr { margin: 30px 0; border: 0; border-top: 2px solid #ddd; }
         h3 { color: #5c67f2; }
 
-        /* --- ユーザー提供のCSS（プレビュー用） --- */
-        #preview-area { padding: 20px; overflow: hidden; background: #fff; }
+        /* --- 修正版CSS（プレビュー用） --- */
+        #preview-area { padding: 20px; background: #fff; line-height: 0; } /* line-height: 0 は隙間対策 */
 
         /* 1. 条件に一致するテーブルの特定とレイアウト */
         #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]):has(tr:nth-child(2) td:nth-child(7)):not(:has(tr:nth-child(2) td:nth-child(8))) {
-            float: left !important;
+            display: inline-table !important; /* floatを廃止 */
+            vertical-align: top !important;
             width: 300px !important;
             border: none !important;
             border-collapse: separate !important;
             border-spacing: 2px !important;
-            margin-left: 1em !important;
+            margin-right: 1em !important; /* 左から右余白に変更 */
             margin-bottom: 2em !important;
             table-layout: fixed !important;
             background: none !important;
             border-bottom: 2px solid #eeeeff !important;
+            line-height: normal; /* 文字の高さは戻す */
         }
 
         /* 2. AtWikiの自動挿入 <br> を無効化 */
@@ -38,19 +40,17 @@
             display: none !important;
         }
 
-        /* 3. 4つ並んだら左端へ強制改行 */
-        #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]):nth-of-type(4n+1) {
-            clear: left !important;
+        /* 3. 画面が十分広い時だけ最大4つで改行する（レスポンシブ対応） */
+        @media (min-width: 1280px) {
+            #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]):nth-of-type(4n+1) {
+                clear: both !important;
+            }
         }
 
-        /* 4. 回り込み解除 */
-        #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]):last-of-type::after {
-            content: "";
-            display: block;
-            clear: both;
-        }
+        /* 4. 回り込み・混入防止 */
         #preview-area table:has(tr:nth-child(1) td[style*="#ccccff"]) + *:not(table):not(br) {
             clear: both !important;
+            display: block !important;
         }
 
         /* 5. セル設定 */
@@ -88,8 +88,7 @@
     <hr>
 
     <h3>プレビュー (提供されたCSSを適用済み)</h3>
-    <div id="preview-area">
-        </div>
+    <div id="preview-area"></div>
 </div>
 
 <script>
@@ -136,13 +135,17 @@ function generate() {
             dow = (dow + 1) % 7;
         }
 
+        // 最終週の埋め
         if (dow !== 0) {
             wikiMonth += wikiRow + "|".repeat(7 - dow) + "\n";
             htmlMonth += htmlRow + "<td></td>".repeat(7 - dow) + "</tr>";
+        } else if (wikiRow !== "|") {
+            // ちょうど土曜日で終わった場合、htmlRowが<tr>のみで残っているのを閉じる処理
+            htmlMonth += htmlRow + "</tr>";
         }
         
         wikiResult += wikiMonth + "\n";
-        htmlResult += htmlMonth + "</table><br>"; // atwikiの挙動を模して<br>を挿入
+        htmlResult += htmlMonth + "</table><br>"; 
     }
 
     document.getElementById('output').value = wikiResult.trim();
