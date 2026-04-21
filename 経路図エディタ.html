@@ -985,9 +985,9 @@ document.getElementById('doOutput').onclick = () => {
     for (let c = leftTrim; c <= lastMeaningfulCol; c++) {
       const cell = cells[r][c];
       if (cell.overlay) {
-        line += `&ref(${cell.overlay},,width=20,height=20)&ref(${cell.base},,width=20,height=20)`;
+        line += `&ref(${cell.overlay})&ref(${cell.base})`;
       } else {
-        line += `&ref(${cell.base},,width=20,height=20)`;
+        line += `&ref(${cell.base})`;
       }
     }
     out.push(line);
