@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>駅情報Infoboxジェネレーター（複数路線対応）</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; line-height: 1.6; padding: 20px; background-color: #f0f2f5; }
+        .container { max-width: 950px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1 { font-size: 1.5rem; color: #1a73e8; border-bottom: 2px solid #1a73e8; padding-bottom: 10px; }
+        .section { background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #e9ecef; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; }
+        .line-block { border-left: 4px solid #1a73e8; margin-top: 10px; padding-left: 15px; }
+        label { font-weight: bold; font-size: 0.8rem; color: #555; }
+        input { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        .btn-add { background: #34a853; color: white; border: none; padding: 10px 15px; border-radius: 6px; cursor: pointer; margin-top: 10px; }
+        .output-area { margin-top: 20px; }
+        textarea { width: 100%; height: 400px; font-family: 'Consolas', monospace; background: #282c34; color: #98c379; padding: 15px; border-radius: 8px; border: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>駅情報Infoboxジェネレーター</h1>
+
+    <div class="section">
+        <label>共通情報</label>
+        <div class="grid">
+            <input type="text" id="color" placeholder="BGCOLOR(色)">
+            <input type="text" id="stName" placeholder="駅名">
+            <input type="text" id="kana" placeholder="ひらがな">
+            <input type="text" id="english" placeholder="English">
+            <input type="text" id="subName" placeholder="副駅名">
+        </div>
+    </div>
+
+    <div id="lines-container">
+        </div>
+    <button class="btn-add" onclick="addLine()">＋ 路線を追加</button>
+
+    <div class="section" style="margin-top:20px;">
+        <label>駅詳細情報</label>
+        <div class="grid">
+            <input type="text" id="location" placeholder="所在地">
+            <input type="text" id="operator" placeholder="所属事業者">
+            <input type="text" id="telegraph" placeholder="電報略号">
+            <input type="text" id="structure" placeholder="駅構造">
+            <input type="text" id="platform" placeholder="ホーム">
+            <input type="text" id="passengers" placeholder="乗車人員(数値)">
+            <input type="text" id="statsYear" placeholder="統計年度(例: 2023)">
+            <input type="text" id="openDate" placeholder="開業年月日">
+            <input type="text" id="closeDate" placeholder="廃止年月日">
+        </div>
+        <div style="margin-top:10px;">
+            <input type="text" id="transfer" placeholder="乗換" style="margin-bottom:10px;">
+            <input type="text" id="remarks" placeholder="備考">
+        </div>
+    </div>
+
+    <div class="output-area">
+        <textarea id="result" readonly placeholder="入力すると自動で生成されます..."></textarea>
+    </div>
+</div>
+
+<script>
+    let lineCount = 0;
+
+    function addLine() {
+        lineCount++;
+        const container = document.getElementById('lines-container');
+        const div = document.createElement('div');
+        div.className = 'section line-block';
+        div.innerHTML = `
+            <label>路線 ${lineCount}</label>
+            <div class="grid">
+                <input type="text" class="lineName" placeholder="所属路線">
+                <input type="text" class="stNum" placeholder="駅番号">
+                <input type="text" class="kilo" placeholder="キロ程">
+            </div>
+            <div class="grid" style="margin-top:10px;">
+                <input type="text" class="pNum" placeholder="前駅番号">
+                <input type="text" class="pName" placeholder="前駅名">
+                <input type="text" class="pDist" placeholder="前駅距離">
+                <input type="text" class="nNum" placeholder="次駅番号">
+                <input type="text" class="nName" placeholder="次駅名">
+                <input type="text" class="nDist" placeholder="次駅距離">
+            </div>
+        `;
+        container.appendChild(div);
+        
+        // 全てのinputにイベントリスナーを再設定
+        document.querySelectorAll('input').forEach(el => el.addEventListener('input', generate));
+        generate();
+    }
+
+    function generate() {
+        const getV = (id) => document.getElementById(id).value.trim();
+        
+        // 名称
+        let nameParts = [];
+        if (getV('kana')) nameParts.push(getV('kana'));
+        if (getV('english')) nameParts.push(getV('english'));
+        if (getV('subName')) nameParts.push(`（${getV('subName')}）`);
+        const nameSection = nameParts.join('&br()');
+
+        // 統計年度
+        let year = getV('statsYear');
+        if (year && !year.startsWith('-')) year = `-${year}年度-`;
+
+        // 路線情報の取得
+        const lineNodes = document.querySelectorAll('.line-block');
+        let linesData = [];
+        lineNodes.forEach(node => {
+            linesData.push({
+                name: node.querySelector('.lineName').value,
+                num: node.querySelector('.stNum').value,
+                kilo: node.querySelector('.kilo').value,
+                pNum: node.querySelector('.pNum').value,
+                pName: node.querySelector('.pName').value,
+                pDist: node.querySelector('.pDist').value,
+                nNum: node.querySelector('.nNum').value,
+                nName: node.querySelector('.nName').value,
+                nDist: node.querySelector('.nDist').value
+            });
+        });
+
+        let code = `#divclass(InfoboxStation){\n`;
+        code += `|>|BGCOLOR(${getV('color')}):${getV('stName')}駅|\n`;
+        code += `|>|${nameSection}|\n`;
+
+        // 1路線の場合は最上部に隣駅を表示、複数なら後回し
+        if (linesData.length === 1) {
+            const l = linesData[0];
+            code += `|>|&spanclass(stl){◄${l.pNum} ${l.pName} (${l.pDist} km)}&spanclass(str){(${l.nDist} km) ${l.nName} ${l.nNum}►}|\n`;
+        }
+
+        code += `|所在地|${getV('location')}|\n`;
+        code += `|所属事業者|${getV('operator')}|\n`;
+        code += `|電報略号|${getV('telegraph')}|\n`;
+        code += `|駅構造|${getV('structure')}|\n`;
+        code += `|ホーム|${getV('platform')}|\n`;
+        code += `|乗車人員&br()${year}|${getV('passengers')}|\n`;
+        code += `|開業年月日|${getV('openDate')}|\n`;
+        
+        // 複数路線時の挿入
+        if (linesData.length > 1) {
+            code += `|>|乗り入れ路線${linesData.length}路線|\n`;
+        }
+
+        code += `|廃止年月日|${getV('closeDate')}|\n`;
+        code += `|乗換|${getV('transfer')}|\n`;
+        code += `|備考|${getV('remarks')}|\n`;
+
+        // 路線別データの書き出し（路線、駅番号、キロ程、隣駅の順でセット）
+        linesData.forEach(l => {
+            code += `|所属路線|${l.name}|\n`;
+            code += `|駅番号|${l.num}|\n`;
+            code += `|キロ程|${l.kilo}|\n`;
+            code += `|>|&spanclass(stl){◄${l.pNum} ${l.pName} (${l.pDist} km)}&spanclass(str){(${l.nDist} km) ${l.nName} ${l.nNum}►}|\n`;
+        });
+
+        code += `}`;
+        document.getElementById('result').value = code;
+    }
+
+    // 初期状態で1つ路線を追加
+    addLine();
+</script>
+
+</body>
+</html>
