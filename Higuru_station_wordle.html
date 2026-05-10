@@ -128,6 +128,7 @@ h1{
 <div id="message"></div>
 <div id="board"></div>
 <div id="keyboard"></div>
+<div id="resultScreen" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;padding:32px;border-radius:16px;max-width:90%;width:520px;"><h2 id="resultTitle"></h2><p id="resultStation" style="font-size:32px;font-weight:bold;margin:16px 0 8px;"></p><p id="resultReading" style="font-size:22px;margin:8px 0;"></p><p id="resultLine" style="font-size:20px;line-height:1.6;margin:12px 0 24px;"></p><button id="nextButton" class="key large" style="width:220px;">次の問題へ</button></div></div>
 
 <script>
 
@@ -173,6 +174,669 @@ const specialLayout = [
 ["ぉ","ご","ぞ","ど","ー","ぼ","ぽ","ょ"]
 ];
 
+const stationInfo = {
+  "あおいだい": {
+    "kanji": "葵台",
+    "reading": "あおいだい",
+    "line": "桜川電気鉄道空港線"
+  },
+  "あおがおか": {
+    "kanji": "蒼ヶ岡",
+    "reading": "あおがおか",
+    "line": "桜都新都市交通桜都線"
+  },
+  "あさばやし": {
+    "kanji": "麻林",
+    "reading": "あさばやし",
+    "line": "陽来国有鉄道南北線"
+  },
+  "あさひまち": {
+    "kanji": "旭町",
+    "reading": "あさひまち",
+    "line": "豊野鉄道春名線"
+  },
+  "あさひわら": {
+    "kanji": "旭原",
+    "reading": "あさひわら",
+    "line": "床川急行電鉄本線"
+  },
+  "あずさだい": {
+    "kanji": "あずさ台",
+    "reading": "あずさだい",
+    "line": "新里鉄道鶴宮線"
+  },
+  "あまつがわ": {
+    "kanji": "天津川",
+    "reading": "あまつがわ",
+    "line": "豊野鉄道天津川線"
+  },
+  "あまどまち": {
+    "kanji": "余戸町",
+    "reading": "あまどまち",
+    "line": "豊野鉄道桜橋線"
+  },
+  "あらいまち": {
+    "kanji": "新居町",
+    "reading": "あらいまち",
+    "line": "豊野鉄道今津線"
+  },
+  "あらせまち": {
+    "kanji": "荒瀬町",
+    "reading": "あらせまち",
+    "line": "豊野鉄道天津川線"
+  },
+  "いしつだい": {
+    "kanji": "石津台",
+    "reading": "いしつだい",
+    "line": "床川急行電鉄本線"
+  },
+  "いずみがわ": {
+    "kanji": "出見川",
+    "reading": "いずみがわ",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "いちがみや": {
+    "kanji": "市ヶ宮",
+    "reading": "いちがみや",
+    "line": "樺山電鉄樺山本線"
+  },
+  "いまがわし": {
+    "kanji": "今川市",
+    "reading": "いまがわし",
+    "line": "床川急行電鉄本線"
+  },
+  "いまづがわ": {
+    "kanji": "今津川",
+    "reading": "いまづがわ",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "いわしづか": {
+    "kanji": "鰯塚",
+    "reading": "いわしづか",
+    "line": "千鳥鉄道千鳥線"
+  },
+  "うえだおき": {
+    "kanji": "上田興",
+    "reading": "うえだおき",
+    "line": "浪川急行電鉄浪川本線"
+  },
+  "おうぎばし": {
+    "kanji": "扇橋",
+    "reading": "おうぎばし",
+    "line": "陽来国有鉄道桜州環状線・豊野鉄道瀬尾線"
+  },
+  "おおつかし": {
+    "kanji": "大塚市",
+    "reading": "おおつかし",
+    "line": "陽来国有鉄道菅谷線・豊野鉄道大塚線"
+  },
+  "おおのさと": {
+    "kanji": "大野里",
+    "reading": "おおのさと",
+    "line": "樺山電鉄樺山本線"
+  },
+  "おおのまち": {
+    "kanji": "大野町",
+    "reading": "おおのまち",
+    "line": "糸宮鉄道糸宮本線"
+  },
+  "おおみはま": {
+    "kanji": "大三浜",
+    "reading": "おおみはま",
+    "line": "新里鉄道湯の浜線"
+  },
+  "おまつばら": {
+    "kanji": "尾松原",
+    "reading": "おまつばら",
+    "line": "樺山電鉄新線"
+  },
+  "かすみまつ": {
+    "kanji": "霞松",
+    "reading": "かすみまつ",
+    "line": "樺山電鉄緋野川線"
+  },
+  "かむきまち": {
+    "kanji": "神来町",
+    "reading": "かむきまち",
+    "line": "豊野鉄道今津線"
+  },
+  "かわばたし": {
+    "kanji": "川端市",
+    "reading": "かわばたし",
+    "line": "樺山電鉄樺山本線"
+  },
+  "かわらまち": {
+    "kanji": "香春町",
+    "reading": "かわらまち",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "かんすざか": {
+    "kanji": "上須坂",
+    "reading": "かんすざか",
+    "line": "笠原鉄道笠原本線"
+  },
+  "かんなばし": {
+    "kanji": "神流橋",
+    "reading": "かんなばし",
+    "line": "豊野鉄道桜橋線"
+  },
+  "かんのんじ": {
+    "kanji": "観音寺",
+    "reading": "かんのんじ",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "ぎおんばし": {
+    "kanji": "祗園橋",
+    "reading": "ぎおんばし",
+    "line": "豊野鉄道瀬尾線"
+  },
+  "きたあおの": {
+    "kanji": "北青野",
+    "reading": "きたあおの",
+    "line": "糸宮鉄道宮本線"
+  },
+  "きたいとや": {
+    "kanji": "北糸谷",
+    "reading": "きたいとや",
+    "line": "糸宮鉄道糸宮本線"
+  },
+  "きたおおの": {
+    "kanji": "北大野",
+    "reading": "きたおおの",
+    "line": "糸宮鉄道糸宮本線"
+  },
+  "きたかわと": {
+    "kanji": "北河都",
+    "reading": "きたかわと",
+    "line": "新里鉄道湯の浜線"
+  },
+  "きたくがわ": {
+    "kanji": "北玖川",
+    "reading": "きたくがわ",
+    "line": "新里鉄道新里線"
+  },
+  "きたさかい": {
+    "kanji": "北坂井",
+    "reading": "きたさかい",
+    "line": "笠原鉄道笠原本線"
+  },
+  "きたさかえ": {
+    "kanji": "北栄",
+    "reading": "きたさかえ",
+    "line": "豊野鉄道韮郷線"
+  },
+  "きたさかし": {
+    "kanji": "北早珂市",
+    "reading": "きたさかし",
+    "line": "西倉鉄道西倉本線"
+  },
+  "きたすがや": {
+    "kanji": "北菅谷",
+    "reading": "きたすがや",
+    "line": "陽来国有鉄道菅谷線"
+  },
+  "きたせはま": {
+    "kanji": "喜多瀬浜",
+    "reading": "きたせはま",
+    "line": "桜川電気鉄道空港線・桜川電気鉄道彩山線"
+  },
+  "きたとくら": {
+    "kanji": "北戸倉",
+    "reading": "きたとくら",
+    "line": "豊野鉄道瀬尾線"
+  },
+  "きたはくさ": {
+    "kanji": "北羽草",
+    "reading": "きたはくさ",
+    "line": "豊野鉄道春名線"
+  },
+  "きたはるた": {
+    "kanji": "北春田",
+    "reading": "きたはるた",
+    "line": "陽来国有鉄道桜州環状線"
+  },
+  "きたはるな": {
+    "kanji": "北春名",
+    "reading": "きたはるな",
+    "line": "豊野鉄道天津川線"
+  },
+  "きたひろみ": {
+    "kanji": "北広見",
+    "reading": "きたひろみ",
+    "line": "豊野鉄道天津川線"
+  },
+  "きたふかえ": {
+    "kanji": "北深江",
+    "reading": "きたふかえ",
+    "line": "桜川電気鉄道空港線"
+  },
+  "きたみずほ": {
+    "kanji": "北瑞穂",
+    "reading": "きたみずほ",
+    "line": "豊野鉄道大塚線"
+  },
+  "きたゆがき": {
+    "kanji": "北湯垣",
+    "reading": "きたゆがき",
+    "line": "糸宮鉄道糸宮本線"
+  },
+  "きたよしだ": {
+    "kanji": "北吉田",
+    "reading": "きたよしだ",
+    "line": "床川急行電鉄本線"
+  },
+  "きょういち": {
+    "kanji": "京市",
+    "reading": "きょういち",
+    "line": "樺山電鉄樺山本線"
+  },
+  "くぬぎはら": {
+    "kanji": "椚原",
+    "reading": "くぬぎはら",
+    "line": "豊野鉄道瀬尾線"
+  },
+  "こいのみや": {
+    "kanji": "恋野宮",
+    "reading": "こいのみや",
+    "line": "新里鉄道湯の浜線"
+  },
+  "こうせつじ": {
+    "kanji": "高雪寺",
+    "reading": "こうせつじ",
+    "line": "陽来国有鉄道菅谷線"
+  },
+  "こつかがわ": {
+    "kanji": "小塚川",
+    "reading": "こつかがわ",
+    "line": "西倉鉄道西倉本線・西倉鉄道水宮線"
+  },
+  "このはだい": {
+    "kanji": "木ノ葉台",
+    "reading": "このはだい",
+    "line": "陽来国有鉄道桜州環状線"
+  },
+  "ころもがわ": {
+    "kanji": "衣川",
+    "reading": "ころもがわ",
+    "line": "香湯ヶ原観光鉄道舞川線"
+  },
+  "さかつこう": {
+    "kanji": "坂津港",
+    "reading": "さかつこう",
+    "line": "豊野鉄道坂津線"
+  },
+  "さくらがわ": {
+    "kanji": "桜川",
+    "reading": "さくらがわ",
+    "line": "桜川電気鉄道空港線・桜川電気鉄道中野線・新里鉄道彩山線・豊野鉄道豊野線"
+  },
+  "さくらざわ": {
+    "kanji": "桜沢",
+    "reading": "さくらざわ",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "さくらだい": {
+    "kanji": "桜台",
+    "reading": "さくらだい",
+    "line": "陽来国有鉄道桜州環状線"
+  },
+  "さくらばし": {
+    "kanji": "桜橋",
+    "reading": "さくらばし",
+    "line": "樺山電鉄樺山本線・樺山電鉄新線・菅谷高速鉄道東西線・豊野鉄道桜橋線"
+  },
+  "さやまがわ": {
+    "kanji": "彩山川",
+    "reading": "さやまがわ",
+    "line": "陽来国有鉄道桜州環状線"
+  },
+  "さやまぐち": {
+    "kanji": "彩山口",
+    "reading": "さやまぐち",
+    "line": "新里鉄道彩山線"
+  },
+  "しおみだい": {
+    "kanji": "汐見台",
+    "reading": "しおみだい",
+    "line": "桜川電気鉄道空港線"
+  },
+  "しぐれぐち": {
+    "kanji": "時雨口",
+    "reading": "しぐれぐち",
+    "line": "樺山電鉄緋野川線"
+  },
+  "しぐれまち": {
+    "kanji": "時雨町",
+    "reading": "しぐれまち",
+    "line": "菅谷高速鉄道東西線"
+  },
+  "しみずはま": {
+    "kanji": "清水浜",
+    "reading": "しみずはま",
+    "line": "新里鉄道湯の浜線"
+  },
+  "しもいまづ": {
+    "kanji": "下今津",
+    "reading": "しもいまづ",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "しんいまづ": {
+    "kanji": "新今津",
+    "reading": "しんいまづ",
+    "line": "陽来国有鉄道菅谷線"
+  },
+  "しんおうと": {
+    "kanji": "新桜都",
+    "reading": "しんおうと",
+    "line": "糸宮鉄道糸宮本線"
+  },
+  "しんたかぎ": {
+    "kanji": "新高城",
+    "reading": "しんたかぎ",
+    "line": "豊野鉄道今津線"
+  },
+  "しんちこう": {
+    "kanji": "新地港",
+    "reading": "しんちこう",
+    "line": "桜川電気鉄道中野線"
+  },
+  "しんつじた": {
+    "kanji": "新辻田",
+    "reading": "しんつじた",
+    "line": "糸宮鉄道宮本線"
+  },
+  "しんつるた": {
+    "kanji": "新鶴田",
+    "reading": "しんつるた",
+    "line": "豊野鉄道春名線"
+  },
+  "しんとよの": {
+    "kanji": "新豊野",
+    "reading": "しんとよの",
+    "line": "豊野鉄道瀬尾線"
+  },
+  "しんまとば": {
+    "kanji": "新的場",
+    "reading": "しんまとば",
+    "line": "新里鉄道湯の浜線"
+  },
+  "たかぎやま": {
+    "kanji": "高城山",
+    "reading": "たかぎやま",
+    "line": "笠原鉄道笠原本線"
+  },
+  "たかみだい": {
+    "kanji": "鷹見台",
+    "reading": "たかみだい",
+    "line": "新里鉄道彩山線"
+  },
+  "たけしょう": {
+    "kanji": "竹昌",
+    "reading": "たけしょう",
+    "line": "樺山電鉄緋野川線"
+  },
+  "たつみだい": {
+    "kanji": "辰巳台",
+    "reading": "たつみだい",
+    "line": "豊野鉄道今津線"
+  },
+  "たてのみや": {
+    "kanji": "館ノ宮",
+    "reading": "たてのみや",
+    "line": "樺山電鉄樺山本線"
+  },
+  "だんのはら": {
+    "kanji": "壇ノ原",
+    "reading": "だんのはら",
+    "line": "豊野鉄道瀬尾線"
+  },
+  "ちくさえん": {
+    "kanji": "千種園",
+    "reading": "ちくさえん",
+    "line": "新里鉄道湯の浜線"
+  },
+  "つきがおか": {
+    "kanji": "月ヶ丘",
+    "reading": "つきがおか",
+    "line": "樺山電鉄緋野川線"
+  },
+  "つきのはら": {
+    "kanji": "月野原",
+    "reading": "つきのはら",
+    "line": "桜川電気鉄道空港線"
+  },
+  "つつみだい": {
+    "kanji": "堤台",
+    "reading": "つつみだい",
+    "line": "豊野鉄道天津川線"
+  },
+  "つばきまた": {
+    "kanji": "椿又",
+    "reading": "つばきまた",
+    "line": "菅谷高速鉄道東西線"
+  },
+  "ときわだい": {
+    "kanji": "常盤台",
+    "reading": "ときわだい",
+    "line": "豊野鉄道天津川線"
+  },
+  "とこがわし": {
+    "kanji": "床川市",
+    "reading": "とこがわし",
+    "line": "床川急行電鉄本線・床川急行電鉄床川港線・浪川急行電鉄浪川本線"
+  },
+  "とばみだい": {
+    "kanji": "鳥羽見台",
+    "reading": "とばみだい",
+    "line": "香湯ヶ原観光鉄道舞川線"
+  },
+  "ながいまち": {
+    "kanji": "永井町",
+    "reading": "ながいまち",
+    "line": "豊野鉄道坂津線"
+  },
+  "なかつまち": {
+    "kanji": "中津町",
+    "reading": "なかつまち",
+    "line": "豊野鉄道天津川線"
+  },
+  "ながのばし": {
+    "kanji": "長野橋",
+    "reading": "ながのばし",
+    "line": "樺山電鉄桜都線"
+  },
+  "なかのはら": {
+    "kanji": "中野原",
+    "reading": "なかのはら",
+    "line": "新里鉄道新里線"
+  },
+  "ながみざか": {
+    "kanji": "長見坂",
+    "reading": "ながみざか",
+    "line": "豊野鉄道和町線"
+  },
+  "なぎまちし": {
+    "kanji": "和町市",
+    "reading": "なぎまちし",
+    "line": "豊野鉄道和町線・豊野鉄道今津線"
+  },
+  "にしあまつ": {
+    "kanji": "西天津",
+    "reading": "にしあまつ",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "にししんち": {
+    "kanji": "西新地",
+    "reading": "にししんち",
+    "line": "陽来国有鉄道桜州環状線"
+  },
+  "にしすがや": {
+    "kanji": "西菅谷",
+    "reading": "にしすがや",
+    "line": "菅谷高速鉄道東西線"
+  },
+  "にしとよの": {
+    "kanji": "西豊野",
+    "reading": "にしとよの",
+    "line": "豊野鉄道豊野線"
+  },
+  "にしなかの": {
+    "kanji": "西中野",
+    "reading": "にしなかの",
+    "line": "陽来国有鉄道桜州環状線"
+  },
+  "にしのもり": {
+    "kanji": "西の杜",
+    "reading": "にしのもり",
+    "line": "樺山電鉄桜都線"
+  },
+  "にしはるな": {
+    "kanji": "西春名",
+    "reading": "にしはるな",
+    "line": "豊野鉄道春名線"
+  },
+  "にしみなと": {
+    "kanji": "西水都",
+    "reading": "にしみなと",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "ひのみばし": {
+    "kanji": "陽ノ見橋",
+    "reading": "ひのみばし",
+    "line": "白洲電気鉄道白洲電鉄線"
+  },
+  "ふなばやし": {
+    "kanji": "舟林",
+    "reading": "ふなばやし",
+    "line": "千鳥鉄道千鳥線"
+  },
+  "ほうえいじ": {
+    "kanji": "宝永寺",
+    "reading": "ほうえいじ",
+    "line": "樺山電鉄桜都線"
+  },
+  "ほんたびら": {
+    "kanji": "本田平",
+    "reading": "ほんたびら",
+    "line": "糸宮鉄道宮本線"
+  },
+  "ほんどおり": {
+    "kanji": "本通",
+    "reading": "ほんどおり",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "ほんゆがき": {
+    "kanji": "本湯垣",
+    "reading": "ほんゆがき",
+    "line": "糸宮鉄道糸宮本線"
+  },
+  "まつだいら": {
+    "kanji": "松平",
+    "reading": "まつだいら",
+    "line": "糸宮鉄道宮本線"
+  },
+  "みしまざき": {
+    "kanji": "三島崎",
+    "reading": "みしまざき",
+    "line": "菅谷高速鉄道東西線"
+  },
+  "みずほはら": {
+    "kanji": "瑞穂原",
+    "reading": "みずほはら",
+    "line": "豊野鉄道桜橋線・陽来国有鉄道糸谷本線"
+  },
+  "みどりえん": {
+    "kanji": "翠園",
+    "reading": "みどりえん",
+    "line": "樺山電鉄緋野川線"
+  },
+  "みなとがわ": {
+    "kanji": "湊川",
+    "reading": "みなとがわ",
+    "line": "新里鉄道鶴宮線"
+  },
+  "みなとざか": {
+    "kanji": "みなと坂",
+    "reading": "みなとざか",
+    "line": "豊野鉄道大塚線"
+  },
+  "みなとやま": {
+    "kanji": "水都山",
+    "reading": "みなとやま",
+    "line": "豊野鉄道今津線"
+  },
+  "みなみがた": {
+    "kanji": "南方",
+    "reading": "みなみがた",
+    "line": "豊野鉄道桜橋線"
+  },
+  "みなみせと": {
+    "kanji": "南瀬戸",
+    "reading": "みなみせと",
+    "line": "豊野鉄道瀬尾線"
+  },
+  "みやつばし": {
+    "kanji": "宮津橋",
+    "reading": "みやつばし",
+    "line": "豊野鉄道桜橋線・陽来国有鉄道糸谷本線"
+  },
+  "もといまち": {
+    "kanji": "本居町",
+    "reading": "もといまち",
+    "line": "豊野鉄道韮郷線"
+  },
+  "もみじがわ": {
+    "kanji": "紅葉川",
+    "reading": "もみじがわ",
+    "line": "豊野鉄道天津川線・陽来国有鉄道芝原線"
+  },
+  "もりひざき": {
+    "kanji": "守日﨑",
+    "reading": "もりひざき",
+    "line": "樺山電鉄桜都線"
+  },
+  "もろいがわ": {
+    "kanji": "諸井川",
+    "reading": "もろいがわ",
+    "line": "桜都新都市交通桜都線"
+  },
+  "やすだまち": {
+    "kanji": "安田町",
+    "reading": "やすだまち",
+    "line": "新里鉄道湯の浜線"
+  },
+  "やないはら": {
+    "kanji": "柳井原",
+    "reading": "やないはら",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "やなぎさか": {
+    "kanji": "柳坂",
+    "reading": "やなぎさか",
+    "line": "樺山電鉄緋野川線"
+  },
+  "ゆめのだい": {
+    "kanji": "夢の台",
+    "reading": "ゆめのだい",
+    "line": "浪川急行電鉄浪川本線"
+  },
+  "れんじゃく": {
+    "kanji": "連雀",
+    "reading": "れんじゃく",
+    "line": "千鳥鉄道千鳥線"
+  },
+  "わかばだい": {
+    "kanji": "若葉台",
+    "reading": "わかばだい",
+    "line": "陽来国有鉄道芝原線"
+  },
+  "わかばまち": {
+    "kanji": "若葉町",
+    "reading": "わかばまち",
+    "line": "豊野鉄道天津川線・陽来国有鉄道広見線"
+  }
+};
+
 let unused = [...stations];
 let answer = "";
 let attempt = 0;
@@ -182,6 +846,17 @@ let specialMode = false;
 const board = document.getElementById("board");
 const keyboard = document.getElementById("keyboard");
 const message = document.getElementById("message");
+const resultScreen = document.getElementById("resultScreen");
+const resultTitle = document.getElementById("resultTitle");
+const resultStation = document.getElementById("resultStation");
+const resultReading = document.getElementById("resultReading");
+const resultLine = document.getElementById("resultLine");
+document.getElementById("nextButton").onclick = ()=>{
+  resultScreen.classList.add("hidden");
+  resultScreen.style.display = "";
+  resetKeyboard();
+  pickAnswer();
+};
 
 function pickAnswer(){
 
@@ -430,12 +1105,9 @@ function submitGuess(){
     }
 
     if(current===answer){
-
         setTimeout(()=>{
-            resetKeyboard();
-            pickAnswer();
-        },1500);
-
+            showResult(true);
+        },800);
         return;
     }
 
@@ -443,12 +1115,21 @@ function submitGuess(){
     current = "";
 
     if(attempt>=6){
-
         setTimeout(()=>{
-            resetKeyboard();
-            pickAnswer();
-        },2000);
+            showResult(false);
+        },1000);
     }
+}
+
+
+function showResult(isCorrect){
+    const info = stationInfo[answer] || {kanji: answer, reading: answer, line: ""};
+    resultTitle.textContent = isCorrect ? "正解！" : "正解は";
+    resultStation.textContent = info.kanji;
+    resultReading.textContent = "（" + info.reading + "）";
+    resultLine.textContent = info.line;
+    resultScreen.classList.remove("hidden");
+    resultScreen.style.display = "flex";
 }
 
 function resetKeyboard(){
