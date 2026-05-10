@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>駅名 Wordle</title>
+
+<style>
+body{
+    margin:0;
+    background:#f7f7f7;
+    font-family:sans-serif;
+    text-align:center;
+    color:#222;
+}
+
+h1{
+    margin-top:18px;
+    margin-bottom:10px;
+}
+
+#message{
+    height:28px;
+    color:#d33;
+    font-weight:bold;
+    margin-bottom:12px;
+}
+
+#board{
+    display:flex;
+    flex-direction:column;
+    gap:8px;
+    align-items:center;
+    margin-bottom:24px;
+}
+
+.row{
+    display:flex;
+    gap:6px;
+}
+
+.cell{
+    width:48px;
+    height:48px;
+    border:2px solid #bbb;
+    background:white;
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:24px;
+    font-weight:bold;
+}
+
+.correct{
+    background:#6aaa64 !important;
+    border-color:#6aaa64 !important;
+    color:white !important;
+}
+
+.present{
+    background:#c9b458 !important;
+    border-color:#c9b458 !important;
+    color:white !important;
+}
+
+.absent{
+    background:#999 !important;
+    border-color:#999 !important;
+    color:white !important;
+}
+
+.close{
+    background:#9b59ff !important;
+    border-color:#9b59ff !important;
+    color:white !important;
+}
+
+#keyboard{
+    width:max-content;
+    margin:0 auto 30px;
+}
+
+.control-row{
+    display:flex;
+    justify-content:space-between;
+    margin-bottom:10px;
+}
+
+.keyrow{
+    display:flex;
+    justify-content:flex-start;
+    gap:6px;
+    margin-bottom:8px;
+}
+
+.key{
+    width:50px;
+    height:50px;
+    border-radius:6px;
+    border:1px solid #bbb;
+    background:white;
+    font-size:24px;
+    font-weight:bold;
+    cursor:pointer;
+    color:#222;
+}
+
+.key.large{
+    width:140px;
+    font-size:18px;
+}
+
+.space{
+    width:50px;
+    height:50px;
+}
+
+.hidden{
+    display:none;
+}
+</style>
+</head>
+<body>
+
+<h1>駅名 Wordle</h1>
+
+<div id="message"></div>
+<div id="board"></div>
+<div id="keyboard"></div>
+
+<script>
+
+const stations = [
+"あおいだい","あおがおか","あさばやし","あさひまち","あさひわら","あずさだい",
+"あまつがわ","あまどまち","あらいまち","あらせまち","いしつだい","いずみがわ",
+"いちがみや","いまがわし","いまづがわ","いわしづか","うえだおき","おうぎばし",
+"おおつかし","おおのさと","おおのまち","おおみはま","おまつばら","かすみまつ",
+"かむきまち","かわばたし","かわらまち","かんすざか","かんなばし","かんのんじ",
+"ぎおんばし","きたあおの","きたいとや","きたおおの","きたかわと","きたくがわ",
+"きたさかい","きたさかえ","きたさかし","きたすがや","きたせはま","きたとくら",
+"きたはくさ","きたはるた","きたはるな","きたひろみ","きたふかえ","きたみずほ",
+"きたゆがき","きたよしだ","きょういち","くぬぎはら","こいのみや","こうせつじ",
+"こつかがわ","このはだい","ころもがわ","さかつこう","さくらがわ","さくらざわ",
+"さくらだい","さくらばし","さやまがわ","さやまぐち","しおみだい","しぐれぐち",
+"しぐれまち","しみずはま","しもいまづ","しんいまづ","しんおうと","しんたかぎ",
+"しんちこう","しんつじた","しんつるた","しんとよの","しんまとば","たかぎやま",
+"たかみだい","たけしょう","たつみだい","たてのみや","だんのはら",
+"ちくさえん","つきがおか","つきのはら","つつみだい","つばきまた","ときわだい",
+"とこがわし","とばみだい","ながいまち","なかつまち","ながのばし","なかのはら",
+"ながみざか","なぎまちし","にしあまつ","にししんち","にしすがや","にしとよの",
+"にしなかの","にしのもり","にしはるな","にしみなと","ひのみばし","ふなばやし",
+"ほうえいじ","ほんたびら","ほんどおり","ほんゆがき","まつだいら","みしまざき",
+"みずほはら","みどりえん","みなとがわ","みなとざか","みなとやま","みなみがた",
+"みなみせと","みやつばし","もといまち","もみじがわ","もりひざき","もろいがわ",
+"やすだまち","やないはら","やなぎさか","ゆめのだい","れんじゃく","わかばだい",
+"わかばまち"
+];
+
+const normalLayout = [
+["あ","か","さ","た","な","は","ま","や","ら","わ","ん"],
+["い","き","し","ち","に","ひ","み"," ","り"],
+["う","く","す","つ","ぬ","ふ","む","ゆ","る"],
+["え","け","せ","て","ね","へ","め"," ","れ"],
+["お","こ","そ","と","の","ほ","も","よ","ろ"]
+];
+
+const specialLayout = [
+["ぁ","が","ざ","だ"," ","ば","ぱ","ゃ"],
+["ぃ","ぎ","じ","ぢ"," ","び","ぴ"],
+["ゔ","ぐ","ず","づ","っ","ぶ","ぷ","ゅ"],
+["ぇ","げ","ぜ","で"," ","べ","ぺ"],
+["ぉ","ご","ぞ","ど","ー","ぼ","ぽ","ょ"]
+];
+
+let unused = [...stations];
+let answer = "";
+let attempt = 0;
+let current = "";
+let specialMode = false;
+
+const board = document.getElementById("board");
+const keyboard = document.getElementById("keyboard");
+const message = document.getElementById("message");
+
+function pickAnswer(){
+
+    if(unused.length===0){
+        unused = [...stations];
+    }
+
+    const idx = Math.floor(Math.random()*unused.length);
+
+    answer = unused[idx];
+    unused.splice(idx,1);
+
+    attempt = 0;
+    current = "";
+
+    board.innerHTML = "";
+
+    for(let r=0;r<6;r++){
+
+        const row = document.createElement("div");
+        row.className = "row";
+
+        for(let i=0;i<answer.length;i++){
+
+            const cell = document.createElement("div");
+            cell.className = "cell";
+
+            row.appendChild(cell);
+        }
+
+        board.appendChild(row);
+    }
+
+    console.log(answer);
+}
+
+function buildKeyboard(){
+
+    keyboard.innerHTML = "";
+
+    const controlRow = document.createElement("div");
+    controlRow.className = "control-row";
+
+    const switchBtn = createControl("゛゜小 ー", ()=>{
+        specialMode = !specialMode;
+        document.getElementById("normal").classList.toggle("hidden");
+        document.getElementById("special").classList.toggle("hidden");
+    });
+
+    const delBtn = createControl("削除", backspace);
+    const enterBtn = createControl("決定", submitGuess);
+
+    controlRow.appendChild(switchBtn);
+    controlRow.appendChild(delBtn);
+    controlRow.appendChild(enterBtn);
+
+    keyboard.appendChild(controlRow);
+
+    createPage(normalLayout,"normal");
+    createPage(specialLayout,"special");
+}
+
+function createPage(layout,id){
+
+    const wrap = document.createElement("div");
+    wrap.id = id;
+
+    if(id==="special"){
+        wrap.classList.add("hidden");
+    }
+
+    layout.forEach(line=>{
+
+        const row = document.createElement("div");
+        row.className = "keyrow";
+
+        line.forEach(ch=>{
+
+            if(ch===" "){
+                const sp = document.createElement("div");
+                sp.className = "space";
+                row.appendChild(sp);
+            }
+            else{
+                row.appendChild(createKey(ch));
+            }
+        });
+
+        wrap.appendChild(row);
+    });
+
+    keyboard.appendChild(wrap);
+}
+
+function createKey(ch){
+
+    const btn = document.createElement("button");
+
+    btn.className = "key";
+    btn.textContent = ch;
+    btn.dataset.key = ch;
+
+    btn.onclick = ()=>{
+
+        if(current.length >= answer.length) return;
+
+        const row = board.children[attempt];
+
+        row.children[current.length].textContent = ch;
+
+        current += ch;
+    };
+
+    return btn;
+}
+
+function createControl(text,fn){
+
+    const btn = document.createElement("button");
+
+    btn.className = "key large";
+    btn.textContent = text;
+    btn.onclick = fn;
+
+    return btn;
+}
+
+function backspace(){
+
+    if(current.length===0) return;
+
+    const row = board.children[attempt];
+
+    row.children[current.length-1].textContent = "";
+
+    current = current.slice(0,-1);
+}
+
+function normalizeKana(ch){
+
+    const map = {
+        "ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お",
+        "ゃ":"や","ゅ":"ゆ","ょ":"よ","っ":"つ",
+        "が":"か","ぎ":"き","ぐ":"く","げ":"け","ご":"こ",
+        "ざ":"さ","じ":"し","ず":"す","ぜ":"せ","ぞ":"そ",
+        "だ":"た","ぢ":"ち","づ":"つ","で":"て","ど":"と",
+        "ば":"は","び":"ひ","ぶ":"ふ","べ":"へ","ぼ":"ほ",
+        "ぱ":"は","ぴ":"ひ","ぷ":"ふ","ぺ":"へ","ぽ":"ほ",
+        "ゔ":"う"
+    };
+
+    return map[ch] || ch;
+}
+
+function isClose(a,b){
+
+    return normalizeKana(a)===normalizeKana(b)
+        && a!==b;
+}
+
+const priority = {
+    absent:1,
+    present:2,
+    close:3,
+    correct:4
+};
+
+function updateKeyColor(ch,state){
+
+    const keys = document.querySelectorAll(".key");
+
+    keys.forEach(key=>{
+
+        if(key.dataset.key===ch){
+
+            let currentState = "";
+
+            if(key.classList.contains("correct")) currentState="correct";
+            else if(key.classList.contains("close")) currentState="close";
+            else if(key.classList.contains("present")) currentState="present";
+            else if(key.classList.contains("absent")) currentState="absent";
+
+            if(priority[currentState] > priority[state]){
+                return;
+            }
+
+            key.classList.remove(
+                "correct",
+                "present",
+                "absent",
+                "close"
+            );
+
+            key.classList.add(state);
+        }
+    });
+}
+
+function submitGuess(){
+
+    if(current.length < 5){
+        message.textContent = "5文字入力してください";
+        return;
+    }
+
+    if(current.length !== answer.length){
+        message.textContent = answer.length + "文字の駅名を入力してください";
+        return;
+    }
+
+    if(!stations.includes(current)){
+
+        message.textContent = "存在しない駅名です";
+        return;
+    }
+
+    message.textContent = "";
+
+    const row = board.children[attempt];
+
+    for(let i=0;i<answer.length;i++){
+
+        const cell = row.children[i];
+        const ch = current[i];
+
+        if(ch===answer[i]){
+
+            cell.classList.add("correct");
+            updateKeyColor(ch,"correct");
+        }
+        else if(isClose(ch,answer[i])){
+
+            cell.classList.add("close");
+            updateKeyColor(ch,"close");
+        }
+        else if(answer.includes(ch)){
+
+            cell.classList.add("present");
+            updateKeyColor(ch,"present");
+        }
+        else{
+
+            cell.classList.add("absent");
+            updateKeyColor(ch,"absent");
+        }
+    }
+
+    if(current===answer){
+
+        setTimeout(()=>{
+            resetKeyboard();
+            pickAnswer();
+        },1500);
+
+        return;
+    }
+
+    attempt++;
+    current = "";
+
+    if(attempt>=6){
+
+        setTimeout(()=>{
+            resetKeyboard();
+            pickAnswer();
+        },2000);
+    }
+}
+
+function resetKeyboard(){
+
+    document.querySelectorAll(".key").forEach(key=>{
+
+        if(key.dataset.key){
+
+            key.classList.remove(
+                "correct",
+                "present",
+                "absent",
+                "close"
+            );
+        }
+    });
+}
+
+buildKeyboard();
+pickAnswer();
+
+</script>
+
+</body>
+</html>
