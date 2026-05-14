@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -128,7 +129,7 @@ h1{
 <div id="message"></div>
 <div id="board"></div>
 <div id="keyboard"></div>
-<div id="resultScreen" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;z-index:1000;"><div style="background:white;padding:32px;border-radius:16px;max-width:90%;width:520px;"><h2 id="resultTitle"></h2><p id="resultStation" style="font-size:32px;font-weight:bold;margin:16px 0 8px;"></p><p id="resultReading" style="font-size:22px;margin:8px 0;"></p><p id="resultLine" style="font-size:20px;line-height:1.6;margin:12px 0 24px;"></p><button id="nextButton" class="key large" style="width:220px;">次の問題へ</button></div></div>
+<div id="resultScreen" class="hidden" style="position:fixed;inset:0;background:rgba(0,0,0,0.75);align-items:center;justify-content:center;z-index:1000;"><div id="resultCard" style="background:white;padding:32px;border-radius:16px;max-width:90%;width:520px;border:8px solid #cccccc;box-sizing:border-box;"><h2 id="resultTitle"></h2><p id="resultStation" style="font-size:32px;font-weight:bold;margin:16px 0 8px;"></p><p id="resultReading" style="font-size:22px;margin:8px 0;"></p><p id="resultLine" style="font-size:20px;line-height:1.6;margin:12px 0 24px;"></p><button id="nextButton" class="key large" style="width:220px;">次の問題へ</button></div></div>
 
 <script>
 
@@ -155,10 +156,7 @@ const stations = [
 "みずほはら","みどりえん","みなとがわ","みなとざか","みなとやま","みなみがた",
 "みなみせと","みやつばし","もといまち","もみじがわ","もりひざき","もろいがわ",
 "やすだまち","やないはら","やなぎさか","ゆめのだい","れんじゃく","わかばだい",
-"わかばまち","にしひらぎ","つきみだい","かんながわ","かんべやま","とうせんじ",
-"いとやぐち","てんのうず","ひのわまち","ほしがおか","すいれんじ","はおんぐち",
-"かぐれだき","おくきたち","しんひろみ","もみじやま","なわちょう","とおかいち",
-"なかのやま","くろまつえ"
+"わかばまち"
 ];
 
 const normalLayout = [
@@ -837,96 +835,6 @@ const stationInfo = {
     "kanji": "若葉町",
     "reading": "わかばまち",
     "line": "豊野鉄道天津川線・陽来国有鉄道広見線"
-  },
-  "にしひらぎ": {
-    "kanji": "西平木",
-    "reading": "にしひらぎ",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "つきみだい": {
-    "kanji": "月見台",
-    "reading": "つきみだい",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "かんながわ": {
-    "kanji": "神奈川",
-    "reading": "かんながわ",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "かんべやま": {
-    "kanji": "神戸山",
-    "reading": "かんべやま",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "とうせんじ": {
-    "kanji": "洞泉寺",
-    "reading": "とうせんじ",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "いとやぐち": {
-    "kanji": "糸谷口",
-    "reading": "いとやぐち",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "てんのうず": {
-    "kanji": "天王洲",
-    "reading": "てんのうず",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "ひのわまち": {
-    "kanji": "火ノ輪町",
-    "reading": "ひのわまち",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "ほしがおか": {
-    "kanji": "星ヶ丘",
-    "reading": "ほしがおか",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "すいれんじ": {
-    "kanji": "水連寺",
-    "reading": "すいれんじ",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "はおんぐち": {
-    "kanji": "波音口",
-    "reading": "はおんぐち",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "かぐれだき": {
-    "kanji": "隠滝",
-    "reading": "にしひらぎ",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "おくきたち": {
-    "kanji": "奥木立",
-    "reading": "おくきたち",
-    "line": "陽来国有鉄道糸谷本線"
-  },
-  "しんひろみ": {
-    "kanji": "新広見",
-    "reading": "しんひろみ",
-    "line": "陽来国有鉄道広見線"
-  },
-  "なわちょう": {
-    "kanji": "名和町",
-    "reading": "なわちょう",
-    "line": "陽来国有鉄道広見線"
-  },
-  "とおかいち": {
-    "kanji": "十日市",
-    "reading": "とおかいち",
-    "line": "陽来国有鉄道広見線"
-  },
-  "なかのやま": {
-    "kanji": "中ノ山",
-    "reading": "なかのやま",
-    "line": "陽来国有鉄道広見線"
-  },
-  "くろまつえ": {
-    "kanji": "黒松江",
-    "reading": "くろまつえ",
-    "line": "陽来国有鉄道高穂線"
   }
 };
 
@@ -1166,6 +1074,26 @@ function submitGuess(){
         return;
     }
 
+    const previousGuesses = [];
+
+    for(let r=0;r<attempt;r++){
+
+        let guess = "";
+        const row = board.children[r];
+
+        for(let c=0;c<answer.length;c++){
+            guess += row.children[c].textContent;
+        }
+
+        previousGuesses.push(guess);
+    }
+
+    if(previousGuesses.includes(current)){
+
+        message.textContent = "同じ駅名は入力できません";
+        return;
+    }
+
     message.textContent = "";
 
     const row = board.children[attempt];
@@ -1215,12 +1143,95 @@ function submitGuess(){
 }
 
 
+
+const lineColors = {
+  "新里鉄道燠野線":"#fd5062",
+  "新里鉄道新里線":"#0cab5e",
+  "新里鉄道彩山線":"#7dca22",
+  "新里鉄道鶴宮線":"#feac2c",
+  "新里鉄道湯の浜線":"#07b5f7",
+  "桜川電気鉄道彩山線":"#20b07b",
+  "桜川電気鉄道空港線":"#2dbbe5",
+  "桜川電気鉄道桜州環状線":"#f18b23",
+  "陽来国有鉄道桜州環状線":"#f18b23",
+  "桜川電気鉄道中野線":"#e296f1",
+  "床川急行電鉄本線":"#ff6100",
+  "床川急行電鉄床川港線":"#ff6100",
+  "豊野鉄道豊野線":"#43a047",
+  "豊野鉄道今津線":"#0dd38b",
+  "豊野鉄道天津川線":"#ff9800",
+  "豊野鉄道瀬尾線":"#308bf3",
+  "陽来国有鉄道芝原線":"#29b6f6",
+  "豊野鉄道韮郷線":"#9971ea",
+  "豊野鉄道春名線":"#fbce0e",
+  "豊野鉄道桜橋線":"#8bc34a",
+  "豊野鉄道坂津線":"#d000ff",
+  "豊野鉄道和町線":"#ee4f91",
+  "豊野鉄道大塚線":"#f791f2",
+  "笠原鉄道笠原本線":"#65da44",
+  "菅谷高速鉄道東西線":"#0063e0",
+  "陽来国有鉄道菅谷線":"#00ada9",
+  "千鳥鉄道千鳥線":"#2930bc",
+  "千鳥鉄道白洲線":"#1dc95f",
+  "千鳥鉄道水都線":"#cc0f0f",
+  "浪川急行電鉄浪川本線":"#51a6cd",
+  "浪川急行電鉄善崎線":"#51a6cd",
+  "樺山電鉄樺山本線":"#9bc200",
+  "樺山電鉄緋野川線":"#9bc200",
+  "樺山電鉄桜都線":"#9bc200",
+  "樺山電鉄新線":"#9bc200",
+  "糸宮鉄道糸宮本線":"#fbaf0e",
+  "糸宮鉄道宮本線":"#fbaf0e",
+  "香湯ヶ原観光鉄道舞川線":"#faa000",
+  "桜都新都市交通桜都線":"#eb0000",
+  "白櫛鉄道白櫛線":"#f9c61f",
+  "樺室電鉄樺室線":"#35abde",
+  "西倉鉄道西倉本線":"#800000",
+  "西倉鉄道水宮線":"#800000",
+  "西倉鉄道釜坂線":"#50ffff",
+  "陽来国有鉄道糸谷本線":"#ff0000",
+  "陽来国有鉄道広見線":"#0000ff",
+  "白洲電気鉄道白洲電鉄線":"#808080"
+};
+
+function setResultBorder(lineText){
+    const card = document.getElementById("resultCard");
+    const aliases = {
+      "陽来国有鉄道南北線": "陽来国有鉄道菅谷線"
+    };
+
+    const lines = lineText.split("・")
+      .map(s => s.trim())
+      .filter(Boolean)
+      .map(line => aliases[line] || line);
+
+    const colors = [...new Set(lines.map(line => lineColors[line] || "#cccccc"))];
+
+    if(colors.length === 1){
+        card.style.border = "8px solid " + colors[0];
+        card.style.backgroundImage = "none";
+    } else {
+        card.style.border = "8px solid transparent";
+        const step = 100 / colors.length;
+        const parts = colors.map((color, i) => {
+            const start = (i * step).toFixed(4);
+            const end = ((i + 1) * step).toFixed(4);
+            return `${color} ${start}%, ${color} ${end}%`;
+        });
+        card.style.backgroundImage =
+            "linear-gradient(white, white), linear-gradient(90deg, " + parts.join(", ") + ")";
+        card.style.backgroundOrigin = "padding-box, border-box";
+        card.style.backgroundClip = "padding-box, border-box";
+    }
+}
+
 function showResult(isCorrect){
     const info = stationInfo[answer] || {kanji: answer, reading: answer, line: ""};
     resultTitle.textContent = isCorrect ? "正解！" : "正解は";
     resultStation.textContent = info.kanji;
     resultReading.textContent = "（" + info.reading + "）";
     resultLine.textContent = info.line;
+    setResultBorder(info.line);
     resultScreen.classList.remove("hidden");
     resultScreen.style.display = "flex";
 }
